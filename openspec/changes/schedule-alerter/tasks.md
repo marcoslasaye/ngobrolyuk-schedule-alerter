@@ -33,13 +33,13 @@ Chain strategy: pending
 
 ## Phase 2: Config & Types
 
-- [ ] **T004** Define `src/fetcher/types.ts`: ScheduleEntry, RawScheduleResponse | config | [T003] | Spec: fetcher FR | ~15min
-- [ ] **T005** Define `src/differ/types.ts`: ScheduleDiff, ChangeEvent, ChangeType | config | [T003] | Spec: differ FR | ~10min
-- [ ] **T006** Define `src/notifier/types.ts`: AlertPayload, ChangeSummary, DeliveryResult | config | [T003] | Spec: notifier FR | ~10min
-- [ ] **T007** Define `src/scheduler/types.ts`: CacheSchema, PollResult | config | [T003] | Spec: scheduler FR | ~10min
-- [ ] **T008** Implement `src/config/schema.ts`: Zod schema for ConfigSchema with defaults + env interpolation | config | [T004, T005, T006, T007] | Spec: scheduler FR-config | ~20min
-- [ ] **T009** Implement `src/config/loader.ts`: YAML read + Zod validate + env var `${VAR}` expansion | config | [T008] | Spec: scheduler FR-config | ~20min
-- [ ] **T010** Create `config.yaml` with Bali TZ, 30min interval, CallMeBot, email fallback template | config | [T008] | Spec: scheduler FR-config | ~10min
+- [x] **T004** Define `src/fetcher/types.ts`: ScheduleEntry, RawScheduleResponse | config | [T003] | Spec: fetcher FR | ~15min
+- [x] **T005** Define `src/differ/types.ts`: ScheduleDiff, ChangeEvent, ChangeType | config | [T003] | Spec: differ FR | ~10min
+- [x] **T006** Define `src/notifier/types.ts`: AlertPayload, ChangeSummary, DeliveryResult | config | [T003] | Spec: notifier FR | ~10min
+- [x] **T007** Define `src/scheduler/types.ts`: CacheSchema, PollResult | config | [T003] | Spec: scheduler FR | ~10min
+- [x] **T008** Implement `src/config/schema.ts`: Zod schema for ConfigSchema with defaults + env interpolation | config | [T004, T005, T006, T007] | Spec: scheduler FR-config | ~20min
+- [x] **T009** Implement `src/config/loader.ts`: YAML read + Zod validate + env var `${VAR}` expansion | config | [T008] | Spec: scheduler FR-config | ~20min
+- [x] **T010** Create `config.yaml` with Bali TZ, 30min interval, CallMeBot, email fallback template | config | [T008] | Spec: scheduler FR-config | ~10min
 
 ## Phase 3: Cache Layer
 
