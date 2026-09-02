@@ -17,5 +17,13 @@
   },
   "keywords": [],
   "license": "MIT",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/nodemailer": "^8.0.1",
+    "nock": "^14.0.17",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
 }
