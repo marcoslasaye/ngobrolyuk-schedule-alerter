@@ -1,0 +1,54 @@
+# Schedule Alerter — zero-infra scheduled run
+#
+# Runs the scraper every 30 minutes on GitHub's hosted runners.
+# Each run fetches the 7-day schedule, diffs against cache, and alerts
+# WhatsApp/CallMeBot if anything changed. Uses the `run-once` mode.
+
+name: schedule-alerter
+
+on:
+  schedule:
+    # Every 30 minutes (matching the default poll interval)
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-once:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Create config from template
+        run: |
+          cp config.yaml.example config.yaml
+          # Secrets are injected as env vars below; config reads ${VAR}
+          # placeholders and interpolates them at runtime.
+
+      - name: Run schedule alerter (run-once)
+        run: node dist/cli.js run-once
+        env:
+          WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY }}
+          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+
+      - name: Upload cache for the next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-cache
+          path: .schedule-cache/
+          include-hidden-files: true
+          if-no-files-found: ignore

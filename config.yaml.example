@@ -1,0 +1,39 @@
+# Schedule Alerter — example configuration
+#
+# Copy this file to `config.yaml` and fill in your real values.
+# `config.yaml` is git-ignored (contains API keys / phone numbers).
+#
+# Timezone: all schedule dates and quiet hours are interpreted in Bali time
+# (UTC+8). Default region used here is Asia/Makassar, which covers Bali.
+
+teacherId: "marcos"
+dateRange: 7                # number of days to look ahead (default 7)
+
+# Poll every 30 minutes by default
+pollIntervalMs: 1800000
+
+quietHours:
+  start: "22:00"            # Bali time (UTC+8)
+  end: "06:00"
+  tz: "Asia/Makassar"
+
+whatsapp:
+  provider: "callmebot"
+  apiKey: "${WHATSAPP_API_KEY}"   # env var interpolation
+  phone: "${WHATSAPP_PHONE}"      # e.g. 628123456789
+
+# Fallback delivery after 3 consecutive WhatsApp failures.
+# type: email | telegram | none
+fallback:
+  type: "email"
+  config:
+    smtpHost: "smtp.gmail.com"
+    smtpPort: 465
+    secure: true
+    user: "${SMTP_USER}"
+    pass: "${SMTP_PASS}"
+    to: "marcos@example.com"
+    from: "${SMTP_USER}"
+
+# Where the JSON cache lives (defaults to ~/.schedule-cache/)
+cachePath: "~/.schedule-cache/"
