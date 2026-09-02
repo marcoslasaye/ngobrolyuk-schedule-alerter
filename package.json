@@ -1,0 +1,21 @@
+{
+  "name": "schedule-alerter",
+  "version": "0.1.0",
+  "description": "Automated teacher schedule scraper with WhatsApp alerts",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "run-once": "tsx src/cli.ts run-once",
+    "test-config": "tsx src/cli.ts test-config"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "private": true
+}

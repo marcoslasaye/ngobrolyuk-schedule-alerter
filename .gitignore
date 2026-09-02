@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Schedule alerter config (contains API keys)
+config.yaml
+
+# Schedule cache (personal data — contains PII)
+.schedule-cache/
+
+# Data cache (personal schedule cache — contains PII)
+data/*.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# OpenCode/Engram local state
+.atl/
+.engram/
