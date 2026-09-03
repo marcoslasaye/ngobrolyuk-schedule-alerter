@@ -166,13 +166,25 @@ and a healthcheck). See [Docker](#docker) below.
 
 ```bash
 docker build -t schedule-alerter .
-docker run --env-file .env schedule-alerter run-once
+
+# Single run (pass secrets via --env-file or -e):
+docker run --rm --env-file .env \
+  -v "$(pwd)/config.yaml:/app/config.yaml" \
+  schedule-alerter run-once
+
+# Continuous daemon (persist the cache across runs):
+docker run -d --env-file .env \
+  -v "$(pwd)/config.yaml:/home/nodeapp/.schedule-alerter/config.yaml" \
+  -v schedule-cache:/home/nodeapp/.schedule-cache \
+  schedule-alerter start
 ```
 
 The image builds in three stages (deps → build → runtime) so the final image
-is small. It runs as a non-root user, exposes a healthcheck, and reads its
+is small. It runs as a **non-root user** with a healthcheck, and reads its
 configuration from `config.yaml` plus the `WHATSAPP_*` / `SMTP_*` env vars.
-Mount `~/.schedule-cache` if you want the cache to persist across runs.
+Mount `config.yaml` into `/app/config.yaml` (or the app user's
+`~/.schedule-alerter/`) and a volume on `~/.schedule-cache` to persist state
+across container restarts.
 
 ## Architecture overview
 

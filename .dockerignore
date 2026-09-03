@@ -1,0 +1,24 @@
+# Dependencies / build output (recreated inside the image)
+node_modules/
+dist/
+
+# Local config & data (contains secrets / PII).
+# Note: config.yaml.example is intentionally NOT ignored — it ships in the
+# image as a reference; only the real (secret-bearing) config.yaml is excluded.
+config.yaml
+.schedule-cache/
+data/
+
+# VCS / tooling
+.git/
+.gitignore
+.atl/
+.engram/
+
+# Editor & OS noise
+.vscode/
+.idea/
+*.log
+logs/
+.DS_Store
+Thumbs.db
