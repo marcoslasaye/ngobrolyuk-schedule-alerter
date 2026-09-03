@@ -67,7 +67,7 @@ Chain strategy: pending
 
 ## Phase 7: Orchestrator & Scheduler
 
-- [ ] **T023** Implement `src/scheduler/orchestrator.ts`: main loop (fetch→diff→notify per date), error isolation per date, structured logging | scheduler | [T011, T012, T013, T016, T021] | Spec: scheduler FR-poll, NFR-error | ~35min
+- [x] **T023** Implement `src/scheduler/orchestrator.ts`: main loop (fetch→diff→notify per date), error isolation per date, structured logging | scheduler | [T011, T012, T013, T016, T021] | Spec: scheduler FR-poll, NFR-error | ~35min
 
 ## Phase 8: CLI & Entry Point
 
