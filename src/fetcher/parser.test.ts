@@ -81,4 +81,30 @@ describe("parseSchedule", () => {
     const entries = parseSchedule(html, "2026-09-05");
     expect(entries.every((e) => e.date === "2026-09-05")).toBe(true);
   });
+
+  it("skips a row that has no student name", () => {
+    const html = `
+      <table class="fh-schedule">
+        <tbody>
+          <tr class="fh-schedule-entry">
+            <td class="fh-time">09:00</td>
+            <td class="fh-student"></td>
+            <td class="fh-language">English</td>
+            <td class="fh-level">Beginner</td>
+            <td class="fh-status">confirmed</td>
+          </tr>
+          <tr class="fh-schedule-entry" data-id="2">
+            <td class="fh-time">10:00</td>
+            <td class="fh-student">Ana Torres</td>
+            <td class="fh-language">English</td>
+            <td class="fh-level">Intermediate</td>
+            <td class="fh-status">confirmed</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const entries = parseSchedule(html, "2026-09-03");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].student).toBe("Ana Torres");
+  });
 });

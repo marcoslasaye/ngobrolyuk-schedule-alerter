@@ -102,4 +102,21 @@ describe("fetchSchedule", () => {
       fetchSchedule("2026-09-04", { baseUrl: BASE, retryDelays: [1] }),
     ).resolves.toMatchObject({ date: "2026-09-04", status: 200 });
   });
+
+  it("does not retry a non-transient 4xx client error", async () => {
+    let calls = 0;
+    nock(BASE)
+      .post("/wp-admin/admin-ajax.php")
+      .times(2)
+      .reply(() => {
+        calls += 1;
+        return [404, "not found"];
+      });
+
+    await expect(
+      fetchSchedule("2026-09-03", { baseUrl: BASE, retryDelays: [1000] }),
+    ).rejects.toThrow();
+    // Only the first attempt happens; the 404 is not retried.
+    expect(calls).toBe(1);
+  });
 });

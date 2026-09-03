@@ -9,7 +9,7 @@
  *  - crash-safety: no partial file remains on save
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadCache, saveCache, cachePathFor } from "./cache.js";
@@ -109,7 +109,7 @@ describe("saveCache", () => {
   it("does not leave a leftover .tmp file after save", () => {
     const schema = { lastFetch: "2026-09-03T10:00:00.000Z", entries: [{ ...sampleEntry }] };
     saveCache(schema, dir);
-    const files = require("node:fs").readdirSync(dir);
+    const files = readdirSync(dir);
     const tmps = files.filter((f: string) => f.endsWith(".tmp"));
     expect(tmps).toHaveLength(0);
   });
