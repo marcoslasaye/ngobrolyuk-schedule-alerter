@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "run-once": "tsx src/cli.ts run-once",
-    "test-config": "tsx src/cli.ts test-config"
+    "test-config": "tsx src/cli.ts test-config",
+    "test-notifier": "tsx src/cli.ts test-notifier"
   },
   "engines": {
     "node": ">=20.0.0"

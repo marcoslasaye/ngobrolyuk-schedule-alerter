@@ -72,7 +72,7 @@ Chain strategy: pending
 ## Phase 8: CLI & Entry Point
 
 - [x] **T024** Implement `src/cli.ts`: commands `start` (daemon), `run-once`, `test-config`, `test-notifier`, help/version | cli | [T009, T023] | Spec: scheduler FR-deploy | ~20min
-- [ ] **T025** Implement `src/index.ts`: public re-exports for test harness | cli | [T004, T005, T006, T007] | — | ~5min
+- [x] **T025** Implement `src/index.ts`: public re-exports for test harness | cli | [T004, T005, T006, T007] | — | ~5min
 
 ## Phase 9: Integration & Polish
 
