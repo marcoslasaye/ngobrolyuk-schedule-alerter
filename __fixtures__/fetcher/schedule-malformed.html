@@ -1,0 +1,12 @@
+<!--
+  Fixture: schedule-malformed.html
+  HTML whose structure does NOT match the expected schedule selectors
+  (the site changed its markup). The parser must treat this as a
+  "no entries" case and return [] while logging a warning, never throwing.
+-->
+<div class="some-other-widget">
+  <ul>
+    <li>No schedule data available for this date.</li>
+    <li>Please try again later.</li>
+  </ul>
+</div>
