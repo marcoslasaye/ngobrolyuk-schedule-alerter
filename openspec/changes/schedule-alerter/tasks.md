@@ -43,7 +43,7 @@ Chain strategy: pending
 
 ## Phase 3: Cache Layer
 
-- [ ] **T011** Implement `src/scheduler/cache.ts`: JSON R/W at `~/.schedule-cache/last-schedule.json` with atomic write (temp+rename) | scheduler | [T007] | Spec: scheduler FR-persistence | ~25min
+- [x] **T011** Implement `src/scheduler/cache.ts`: JSON R/W at `~/.schedule-cache/last-schedule.json` with atomic write (temp+rename) | scheduler | [T007] | Spec: scheduler FR-persistence | ~25min
 
 ## Phase 4: Fetcher Domain
 
