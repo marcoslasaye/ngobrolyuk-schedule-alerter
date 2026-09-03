@@ -47,7 +47,7 @@ Chain strategy: pending
 
 ## Phase 4: Fetcher Domain
 
-- [ ] **T012** Implement `src/fetcher/client.ts`: axios POST to `admin-ajax.php`, 3x exponential backoff, 10s timeout | fetcher | [T004] | Spec: fetcher FR-fetch | ~25min
+- [x] **T012** Implement `src/fetcher/client.ts`: axios POST to `admin-ajax.php`, 3x exponential backoff, 10s timeout | fetcher | [T004] | Spec: fetcher FR-fetch | ~25min
 - [ ] **T013** Implement `src/fetcher/parser.ts`: Cheerio HTML → ScheduleEntry[], empty/selector-mismatch → `[]` + warn | fetcher | [T004] | Spec: fetcher FR-parse | ~30min
 - [ ] **T014** Record HTML fixtures: `__fixtures__/schedule-single-day.html`, `schedule-empty.html`, `schedule-malformed.html` | fetcher | [T013] | Spec: fetcher scenarios | ~15min
 - [ ] **T015** Unit tests: `fetcher/client.test.ts` (nock-recorded retries, timeout), `fetcher/parser.test.ts` (3 fixtures) | fetcher | [T012, T013, T014] | Spec: fetcher FR, NFR | ~30min
