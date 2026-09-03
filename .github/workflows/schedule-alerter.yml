@@ -12,9 +12,19 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
+# Permission to read the repo, plus abort in-flight runs when a new one
+# (e.g. a manual dispatch) supersedes a queued scheduled run.
+permissions:
+  contents: read
+
+concurrency:
+  group: schedule-alerter-runs
+  cancel-in-progress: false
+
 jobs:
   run-once:
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # stay well inside the hosted-runner job limit
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,11 +35,24 @@ jobs:
           node-version: "20"
           cache: "npm"
 
+      # Cache the installed node_modules so clean scheduled runs skip the
+      # expensive `npm ci` dependency resolution when the lockfile is unchanged.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build
         run: npm run build
+
+      - name: Test
+        run: npm test
 
       - name: Create config from template
         run: |
@@ -45,6 +68,8 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
 
+      # Persist the schedule cache so the NEXT scheduled run has prior state
+      # to diff against (avoids a re-alert every 30 minutes).
       - name: Upload cache for the next run
         uses: actions/upload-artifact@v4
         with:
@@ -52,3 +77,8 @@ jobs:
           path: .schedule-cache/
           include-hidden-files: true
           if-no-files-found: ignore
+
+      # The cache lives on the runner, but GitHub Actions ephemeral runners
+      # reset between jobs. A manual dispatch (workflow_dispatch) cannot rely
+      # on a restored artifact, so treat a missing cache as a first run — the
+      # application already suppresses the alert in that case.
