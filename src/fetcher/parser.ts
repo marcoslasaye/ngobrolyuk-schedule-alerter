@@ -14,15 +14,15 @@ import type { ScheduleEntry } from "./types.js";
 
 /**
  * Selector for a single schedule row/entry in the response HTML.
- * See __fixtures__/fetcher/schedule-single-day.html for the recorded shape.
+ * Real HTML uses .fh-table-row.fh-item (div-based table, not tr/td).
  */
-const ENTRY_SELECTOR = "tr.fh-schedule-entry";
+const ENTRY_SELECTOR = ".fh-table-row.fh-item";
 const FIELD_SELECTOR = {
-  time: ".fh-time",
-  student: ".fh-student",
-  language: ".fh-language",
-  level: ".fh-level",
-  status: ".fh-status",
+  time: ".fh-cell-waktu .fh-cell-time",
+  student: ".fh-cell-siswa",
+  language: ".fh-cell-bahasa-wrap .fh-lang-badge",
+  level: "", // Not directly available; could infer from language badge
+  status: ".fh-cell-status-wrap .fh-status-badge",
 } as const;
 
 /** Empty result reused when no entries can be extracted. */
@@ -48,16 +48,26 @@ export function computeHash(student: string, language: string, date: string): st
  *
  * The `date` parameter is applied to every entry (YYYY-MM-DD); if omitted
  * the entry carries an empty date string.
+ * Date is also extracted from the page's date picker (YYYY-MM-DD).
  */
 export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
   const $ = load(html);
   const rows = $(ENTRY_SELECTOR).toArray();
 
+  // Extract date from the page's date picker if not provided
+  let effectiveDate = date;
+  if (!effectiveDate) {
+    const pickerVal = $('.fh-date-picker').val();
+    if (pickerVal) {
+      effectiveDate = pickerVal as string;
+    }
+  }
+
   if (rows.length === 0) {
     if (html.trim().length > 0) {
       console.warn(
         "[fetcher] No schedule entries found for date " +
-          (date || "unknown") +
+          (effectiveDate || "unknown") +
           " (selector mismatch or empty response).",
       );
     }
@@ -71,17 +81,27 @@ export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
     const time = ($row.find(FIELD_SELECTOR.time).text() ?? "").trim();
     const student = ($row.find(FIELD_SELECTOR.student).text() ?? "").trim();
     const language = ($row.find(FIELD_SELECTOR.language).text() ?? "").trim();
-    const level = ($row.find(FIELD_SELECTOR.level).text() ?? "").trim();
     const status = ($row.find(FIELD_SELECTOR.status).text() ?? "").trim();
+
+    // Extract date from row meta if available (format: "Kam, 03 Sep")
+    let rowDate = effectiveDate;
+    const rowDateText = $row.find('.fh-cell-date').text().trim();
+    if (rowDateText && !effectiveDate) {
+      // Could parse Indonesian date format, but we'll use effectiveDate
+      // Row date is just for display context
+    }
 
     if (!student) {
       // A row with no student is not a usable schedule entry.
       continue;
     }
 
-    const hash = computeHash(student, language, date);
+    // Level is not directly in HTML; infer from language or leave empty
+    const level = "";
+
+    const hash = computeHash(student, language, effectiveDate);
     entries.push({
-      date,
+      date: effectiveDate,
       time,
       student,
       level,

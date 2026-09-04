@@ -142,18 +142,19 @@ export class ScheduleOrchestrator {
     const firstRun = diffResult.firstRun || cached.entries.length === 0;
 
     // Build AlertPayload (skip on first run to suppress initial noise).
+    // Always call queue.process() so wake-flush runs every cycle (even with no new changes).
+    const changes = this.buildChangeSummaries(diffResult);
     if (!firstRun) {
-      const changes = this.buildChangeSummaries(diffResult);
-      if (changes.length > 0) {
-        this.log.info({ changes: changes.length }, "poll:changes detected; queueing alert");
-        await this.deps.queue.process({
-          changes,
-          timestamp: startedAt,
-          dateRange: { start: dates[0], end: dates[dates.length - 1] },
-        });
-      }
+      this.log.info({ changes: changes.length }, "poll:changes detected; queueing alert");
+      await this.deps.queue.process({
+        changes,
+        timestamp: startedAt,
+        dateRange: { start: dates[0], end: dates[dates.length - 1] },
+      }, now);
     } else {
       this.log.info("poll:first run (empty cache); alert suppressed");
+      // Still flush any pending queue on first run (should be empty, but safe).
+      await this.deps.queue.process({ changes: [], timestamp: startedAt, dateRange: { start: dates[0], end: dates[dates.length - 1] } }, now);
     }
 
     // Persist the current combined state.

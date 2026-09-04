@@ -181,7 +181,7 @@ describe("createOrchestrator", () => {
     expect(queue.process).toHaveBeenCalled();
   });
 
-  it("suppresses alert on first run (empty cache → all entries added)", async () => {
+  it("suppresses alert on first run (empty cache → all entries added) but still flushes queue", async () => {
     const entries: Record<string, ScheduleEntry[]> = {
       "2026-09-03": [entry("h1", { date: "2026-09-03" })],
       "2026-09-04": [],
@@ -208,8 +208,10 @@ describe("createOrchestrator", () => {
     const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
     const result = await orch.pollOnce();
 
-    // Queue should NOT be called on first run.
-    expect(queue.process).not.toHaveBeenCalled();
+    // Queue IS called on first run (to allow wake-flush), but with empty changes.
+    expect(queue.process).toHaveBeenCalled();
+    const payload = queue.process.mock.calls[0][0] as AlertPayload;
+    expect(payload.changes).toEqual([]);
     expect(result.firstRun).toBe(true);
     // But cache should still be saved.
     expect(cache.save).toHaveBeenCalled();
