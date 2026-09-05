@@ -30,11 +30,11 @@ export const configSchema = z.object({
     end: timeSchema,
     tz: z.string().min(1, "quietHours.tz is required"),
   }),
-  /** WhatsApp delivery channel config */
+  /** WhatsApp delivery channel config (optional — can be empty when using Telegram) */
   whatsapp: z.object({
     provider: whatsappProviderSchema,
-    apiKey: z.string().min(1, "whatsapp.apiKey is required"),
-    phone: z.string().min(1, "whatsapp.phone is required"),
+    apiKey: z.string().default(""),
+    phone: z.string().default(""),
   }),
   /** Fallback delivery channel config */
   fallback: z.object({

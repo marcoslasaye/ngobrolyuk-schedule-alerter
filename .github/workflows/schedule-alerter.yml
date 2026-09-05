@@ -63,10 +63,14 @@ jobs:
       - name: Run schedule alerter (run-once)
         run: node dist/cli.js run-once
         env:
-          WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY }}
-          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # WhatsApp disabled (optional): uncomment if you add CallMeBot secrets
+          # WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY }}
+          # WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
+          # Email fallback (optional): uncomment if you add Gmail app password
+          # SMTP_USER: ${{ secrets.SMTP_USER }}
+          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
 
       # Persist the schedule cache so the NEXT scheduled run has prior state
       # to diff against (avoids a re-alert every 30 minutes).
