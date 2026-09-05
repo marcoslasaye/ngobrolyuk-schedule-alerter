@@ -1,12 +1,12 @@
-<!--
-  Fixture: schedule-malformed.html
-  HTML whose structure does NOT match the expected schedule selectors
-  (the site changed its markup). The parser must treat this as a
-  "no entries" case and return [] while logging a warning, never throwing.
--->
-<div class="some-other-widget">
-  <ul>
-    <li>No schedule data available for this date.</li>
-    <li>Please try again later.</li>
-  </ul>
+<div class="fh-table-wrap" id="fh-schedule-list">
+    <div class="fh-table-header" role="row">
+        <div class="fh-table-header-cell">Waktu</div>
+        <div class="fh-table-header-cell">Siswa</div>
+    </div>
+    <div class="not-a-row">
+        <span>This is malformed</span>
+    </div>
+    <div class="fh-table-row fh-item">
+        <div class="wrong-structure">Missing cells</div>
+    </div>
 </div>

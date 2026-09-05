@@ -6,12 +6,12 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/cli.js start",
+    "start": "node --env-file=.env dist/cli.js start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "run-once": "tsx src/cli.ts run-once",
-    "test-config": "tsx src/cli.ts test-config",
-    "test-notifier": "tsx src/cli.ts test-notifier"
+    "run-once": "tsx --env-file=.env src/cli.ts run-once",
+    "test-config": "tsx --env-file=.env src/cli.ts test-config",
+    "test-notifier": "tsx --env-file=.env src/cli.ts test-notifier"
   },
   "engines": {
     "node": ">=20.0.0"

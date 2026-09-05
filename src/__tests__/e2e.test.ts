@@ -145,11 +145,11 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // Entries keep their recorded fields + identity hash.
     expect(cache.entries[0]).toMatchObject({
       date: FIXTURE_DATE,
-      time: "09:00",
-      student: "Juan P\u00e9rez",
+      time: "09:00 – 10:00",
+      student: "Juan Pérez",
       language: "English",
-      level: "Beginner",
-      status: "confirmed",
+      level: "",
+      status: "Selesai",
     });
     expect(typeof cache.entries[0].hash).toBe("string");
     expect(cache.entries[0].hash.length).toBe(64);
@@ -172,7 +172,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // Seed the cache with a schedule where one fixture class has a different
     // time, so a real `modified` change is produced on the next cycle.
     const seedEntries = fixtureFetcher(FIXTURE_DATE).map((e: ScheduleEntry, i: number) =>
-      i === 0 ? { ...e, time: "09:30" } : e,
+      i === 0 ? { ...e, time: "09:30 – 10:30" } : e,
     );
     saveCache({ lastFetch: NOW.toISOString(), entries: seedEntries }, cacheDir);
 

@@ -1,30 +1,77 @@
-<!--
-  Fixture: schedule-single-day.html
-  Recorded from the WP AJAX endpoint `fh_get_realtime_schedule&date=2026-09-03`.
-  Contains 3 class entries in the expected schedule structure.
--->
-<table class="fh-schedule">
-  <tbody>
-    <tr class="fh-schedule-entry" data-id="101">
-      <td class="fh-time">09:00</td>
-      <td class="fh-student">Juan Pérez</td>
-      <td class="fh-language">English</td>
-      <td class="fh-level">Beginner</td>
-      <td class="fh-status">confirmed</td>
-    </tr>
-    <tr class="fh-schedule-entry" data-id="102">
-      <td class="fh-time">10:30</td>
-      <td class="fh-student">María García</td>
-      <td class="fh-language">English</td>
-      <td class="fh-level">Intermediate</td>
-      <td class="fh-status">confirmed</td>
-    </tr>
-    <tr class="fh-schedule-entry" data-id="103">
-      <td class="fh-time">14:00</td>
-      <td class="fh-student">Lucía Fernández</td>
-      <td class="fh-language">Spanish</td>
-      <td class="fh-level">Advanced</td>
-      <td class="fh-status">pending</td>
-    </tr>
-  </tbody>
-</table>
+<div class="fh-table-wrap" id="fh-schedule-list">
+    <div class="fh-table-header" role="row">
+        <div class="fh-table-header-cell" role="columnheader">Waktu</div>
+        <div class="fh-table-header-cell" role="columnheader">Siswa</div>
+        <div class="fh-table-header-cell" role="columnheader">Bahasa</div>
+        <div class="fh-table-header-cell" role="columnheader">Status</div>
+    </div>
+
+    <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+        <div class="fh-cell-waktu" role="cell">
+            <span class="fh-cell-time">09:00 – 10:00</span>
+            <span class="fh-cell-meta">
+                <span class="fh-cell-date">Kam, 03 Sep</span>
+                <span class="fh-cell-dur">1j</span>
+            </span>
+        </div>
+        <div class="fh-cell-siswa" role="cell">Juan Pérez</div>
+        <div class="fh-cell-bahasa-wrap" role="cell">
+            <span class="fh-lang-badge fh-lang-english">
+                <span class="fh-flag" aria-hidden="true"></span>
+                English
+            </span>
+        </div>
+        <div class="fh-cell-status-wrap" role="cell">
+            <span class="fh-status-badge fh-badge-confirmed">
+                <span class="fh-status-icon" aria-hidden="true"></span>
+                Selesai
+            </span>
+        </div>
+    </div>
+
+    <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+        <div class="fh-cell-waktu" role="cell">
+            <span class="fh-cell-time">10:00 – 11:30</span>
+            <span class="fh-cell-meta">
+                <span class="fh-cell-date">Kam, 03 Sep</span>
+                <span class="fh-cell-dur">1j 30m</span>
+            </span>
+        </div>
+        <div class="fh-cell-siswa" role="cell">María García</div>
+        <div class="fh-cell-bahasa-wrap" role="cell">
+            <span class="fh-lang-badge fh-lang-spanish">
+                <span class="fh-flag" aria-hidden="true"></span>
+                Spanish
+            </span>
+        </div>
+        <div class="fh-cell-status-wrap" role="cell">
+            <span class="fh-status-badge fh-badge-confirmed">
+                <span class="fh-status-icon" aria-hidden="true"></span>
+                Selesai
+            </span>
+        </div>
+    </div>
+
+    <div class="fh-table-row fh-item" data-status="pending" role="row">
+        <div class="fh-cell-waktu" role="cell>
+            <span class="fh-cell-time">11:00 – 12:00</span>
+            <span class="fh-cell-meta">
+                <span class="fh-cell-date">Kam, 03 Sep</span>
+                <span class="fh-cell-dur">1j</span>
+            </span>
+        </div>
+        <div class="fh-cell-siswa" role="cell">Lucía Fernández</div>
+        <div class="fh-cell-bahasa-wrap" role="cell">
+            <span class="fh-lang-badge fh-lang-english">
+                <span class="fh-flag" aria-hidden="true"></span>
+                English
+            </span>
+        </div>
+        <div class="fh-cell-status-wrap" role="cell">
+            <span class="fh-status-badge fh-badge-pending">
+                <span class="fh-status-icon" aria-hidden="true"></span>
+                Ditunda
+            </span>
+        </div>
+    </div>
+</div>

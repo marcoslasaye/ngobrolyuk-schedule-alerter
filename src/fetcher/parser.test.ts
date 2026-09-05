@@ -41,16 +41,16 @@ describe("parseSchedule", () => {
     expect(entries).toHaveLength(3);
     expect(entries[0]).toMatchObject({
       date: "2026-09-03",
-      time: "09:00",
+      time: "09:00 – 10:00",
       student: "Juan Pérez",
       language: "English",
-      level: "Beginner",
-      status: "confirmed",
+      level: "",
+      status: "Selesai",
     });
     expect(entries[1].student).toBe("María García");
-    expect(entries[1].level).toBe("Intermediate");
+    expect(entries[1].language).toBe("Spanish");
     expect(entries[2].student).toBe("Lucía Fernández");
-    expect(entries[2].status).toBe("pending");
+    expect(entries[2].status).toBe("Ditunda");
   });
 
   it("computes a stable hash for each parsed entry", () => {
@@ -84,24 +84,32 @@ describe("parseSchedule", () => {
 
   it("skips a row that has no student name", () => {
     const html = `
-      <table class="fh-schedule">
-        <tbody>
-          <tr class="fh-schedule-entry">
-            <td class="fh-time">09:00</td>
-            <td class="fh-student"></td>
-            <td class="fh-language">English</td>
-            <td class="fh-level">Beginner</td>
-            <td class="fh-status">confirmed</td>
-          </tr>
-          <tr class="fh-schedule-entry" data-id="2">
-            <td class="fh-time">10:00</td>
-            <td class="fh-student">Ana Torres</td>
-            <td class="fh-language">English</td>
-            <td class="fh-level">Intermediate</td>
-            <td class="fh-status">confirmed</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="fh-table-wrap" id="fh-schedule-list">
+        <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+          <div class="fh-cell-waktu" role="cell">
+            <span class="fh-cell-time">09:00 – 10:00</span>
+          </div>
+          <div class="fh-cell-siswa" role="cell"></div>
+          <div class="fh-cell-bahasa-wrap" role="cell">
+            <span class="fh-lang-badge fh-lang-english">English</span>
+          </div>
+          <div class="fh-cell-status-wrap" role="cell">
+            <span class="fh-status-badge fh-badge-confirmed">Selesai</span>
+          </div>
+        </div>
+        <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+          <div class="fh-cell-waktu" role="cell">
+            <span class="fh-cell-time">10:00 – 11:00</span>
+          </div>
+          <div class="fh-cell-siswa" role="cell">Ana Torres</div>
+          <div class="fh-cell-bahasa-wrap" role="cell">
+            <span class="fh-lang-badge fh-lang-english">English</span>
+          </div>
+          <div class="fh-cell-status-wrap" role="cell">
+            <span class="fh-status-badge fh-badge-confirmed">Selesai</span>
+          </div>
+        </div>
+      </div>
     `;
     const entries = parseSchedule(html, "2026-09-03");
     expect(entries).toHaveLength(1);

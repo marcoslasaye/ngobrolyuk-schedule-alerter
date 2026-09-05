@@ -134,7 +134,8 @@ describe("createOrchestrator", () => {
     const config = mockConfig();
 
     const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
-    const result = await orch.pollOnce();
+    const frozenDate = new Date("2026-09-03T08:00:00.000Z");
+    const result = await orch.pollOnce(frozenDate);
 
     // Should have fetched all 7 dates.
     expect(fetcher.fetch).toHaveBeenCalledTimes(7);
@@ -171,7 +172,9 @@ describe("createOrchestrator", () => {
     const config = mockConfig();
 
     const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
-    const result = await orch.pollOnce();
+    // Pass frozen date so generated dates match mock keys.
+    const frozenDate = new Date("2026-09-03T08:00:00.000Z");
+    const result = await orch.pollOnce(frozenDate);
 
     // Still fetched all 7 dates.
     expect(fetcher.fetch).toHaveBeenCalledTimes(7);
@@ -206,7 +209,8 @@ describe("createOrchestrator", () => {
     const config = mockConfig();
 
     const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
-    const result = await orch.pollOnce();
+    const frozenDate = new Date("2026-09-03T08:00:00.000Z");
+    const result = await orch.pollOnce(frozenDate);
 
     // Queue IS called on first run (to allow wake-flush), but with empty changes.
     expect(queue.process).toHaveBeenCalled();
@@ -248,7 +252,9 @@ describe("createOrchestrator", () => {
     const config = mockConfig();
 
     const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
-    const result = await orch.pollOnce();
+    // Pass frozen date so generated dates match mock keys.
+    const frozenDate = new Date("2026-09-03T08:00:00.000Z");
+    const result = await orch.pollOnce(frozenDate);
 
     expect(result.datesPolled).toBe(7);
     expect(result.errors).toBe(0);
