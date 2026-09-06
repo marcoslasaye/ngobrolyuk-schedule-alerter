@@ -1,7 +1,7 @@
 /**
  * ScheduleEntry — structured record for a single class slot.
  *
- * Identity is derived from `hash` (SHA-256 of student + language + date).
+ * Identity is derived from `hash` (SHA-256 of tutor + student + language + date).
  * Used across fetcher → differ → notifier pipeline.
  */
 export interface ScheduleEntry {
@@ -9,6 +9,8 @@ export interface ScheduleEntry {
   date: string;
   /** Class start time in HH:mm format (Bali time) */
   time: string;
+  /** Tutor / teacher name (e.g., "Marcos Lopez") */
+  tutor: string;
   /** Student / customer name */
   student: string;
   /** Proficiency level, e.g. "Beginner", "Intermediate", "Advanced" */
@@ -19,7 +21,7 @@ export interface ScheduleEntry {
   status: string;
   /** Optional raw HTML snippet for debugging / traceability */
   rawHtml?: string;
-  /** SHA-256 identity hash: student + language + date */
+  /** SHA-256 identity hash: tutor + student + language + date */
   hash: string;
 }
 

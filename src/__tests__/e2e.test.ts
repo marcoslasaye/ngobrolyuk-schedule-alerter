@@ -32,7 +32,7 @@ import {
 } from "../index.js";
 
 const FIXTURES_DIR = resolve("__fixtures__/fetcher");
-/** Recorded, real response HTML for 2026-09-03 (3 class entries). */
+/** Recorded, real response HTML for 2026-09-03 (3 class entries for Marcos Lopez). */
 const SINGLE_DAY_HTML = readFileSync(
   join(FIXTURES_DIR, "schedule-single-day.html"),
   "utf8",
@@ -129,7 +129,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // No crash — clean summary.
     expect(result.errors).toBe(0);
     expect(result.datesPolled).toBe(7);
-    // The single-day fixture contributes its 3 entries.
+    // The single-day fixture contributes its 3 entries (all for Marcos Lopez).
     expect(result.totalEntries).toBe(3);
     // First run (empty cache) must suppress the alert.
     expect(result.firstRun).toBe(true);
@@ -146,6 +146,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     expect(cache.entries[0]).toMatchObject({
       date: FIXTURE_DATE,
       time: "09:00 – 10:00",
+      tutor: "Marcos Lopez",
       student: "Juan Pérez",
       language: "English",
       level: "",
@@ -245,7 +246,8 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     expect(capturedPayload!.changes[0].type).toBe("modified");
     expect(capturedPayload!.changes[0].class).toMatchObject({
       date: FIXTURE_DATE,
-      student: "Juan P\u00e9rez",
+      tutor: "Marcos Lopez",
+      student: "Juan Pérez",
     });
     expect(typeof capturedPayload!.timestamp).toBe("string");
     expect(new Date(capturedPayload!.timestamp).getTime()).not.toBeNaN();
@@ -255,7 +257,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // The formatted message renders through the real formatter without
     // crashing and includes the affected student.
     const formatted = formatAlert(capturedPayload!);
-    expect(formatted).toContain("Juan P\u00e9rez");
+    expect(formatted).toContain("Juan Pérez");
     expect(formatted).toContain("Sep 3");
 
     // DeliveryResult captured.

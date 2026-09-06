@@ -41,6 +41,7 @@ export type CommandName =
   | "run-once"
   | "test-config"
   | "test-notifier"
+  | "horario-hoy"
   | "help"
   | "version"
   | "unknown";
@@ -63,6 +64,8 @@ export interface CliServices {
   startDaemon(): { running: boolean };
   /** Probe the notifier channel with a test message. */
   testNotifier(): Promise<DeliveryResult>;
+  /** Fetch and return today's schedule for Marcos Lopez. */
+  fetchTodaySchedule(): Promise<ScheduleEntry[]>;
   /** Version string to report. */
   version: string;
 }
@@ -84,6 +87,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
       return { command: "test-config" };
     case "test-notifier":
       return { command: "test-notifier" };
+    case "horario-hoy":
+      return { command: "horario-hoy" };
     case "--help":
     case "-h":
       return { command: "help" };
@@ -104,6 +109,7 @@ function printUsage(): void {
   console.log("  run-once       Fetch once, diff, and alert (for GitHub Actions / manual)");
   console.log("  test-config    Validate config.yaml and exit");
   console.log("  test-notifier  Probe the WhatsApp/fallback delivery channel");
+  console.log("  horario-hoy    Show today's classes for Marcos Lopez");
   console.log("  help, -h, --help     Show this help");
   console.log("  version, -V          Show the version");
 }
@@ -164,6 +170,28 @@ export async function dispatch(
         return 1;
       }
     }
+    case "horario-hoy": {
+      try {
+        const entries = await services.fetchTodaySchedule();
+        if (entries.length === 0) {
+          console.log("📅 Hoy no hay clases para Marcos Lopez.");
+          return 0;
+        }
+        console.log(`📅 Horario de hoy para Marcos Lopez (${entries.length} clase${entries.length > 1 ? "s" : ""}):`);
+        console.log("");
+        entries.forEach((e, i) => {
+          const time = e.time;
+          const student = e.student;
+          const lang = e.language;
+          const status = e.status;
+          console.log(`  ${i + 1}. ${time}  →  ${student}  |  ${lang}  |  ${status}`);
+        });
+        return 0;
+      } catch (err) {
+        console.error(`horario-hoy failed: ${String(err)}`);
+        return 1;
+      }
+    }
     case "help":
       printUsage();
       return 0;
@@ -216,6 +244,15 @@ export function buildServices(version: string): CliServices {
       }
       // Probes the fallback channel as well so the user sees both paths.
       return sendFallback(testText, config.fallback);
+    },
+
+    async fetchTodaySchedule(): Promise<ScheduleEntry[]> {
+      const config = loadConfigFile();
+      const today = new Date().toISOString().split("T")[0];
+      const raw = await fetchSchedule(today, {
+        baseUrl: resolveBaseUrl(config),
+      });
+      return parseSchedule(raw.html, today);
     },
   };
 }

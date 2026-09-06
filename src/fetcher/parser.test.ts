@@ -35,13 +35,14 @@ describe("computeHash", () => {
 });
 
 describe("parseSchedule", () => {
-  it("parses 3 entries from the single-day fixture", () => {
+  it("parses 3 entries from the single-day fixture (only Marcos Lopez)", () => {
     const html = readFileSync(join(FIXTURES, "schedule-single-day.html"), "utf8");
     const entries = parseSchedule(html, "2026-09-03");
     expect(entries).toHaveLength(3);
     expect(entries[0]).toMatchObject({
       date: "2026-09-03",
       time: "09:00 – 10:00",
+      tutor: "Marcos Lopez",
       student: "Juan Pérez",
       language: "English",
       level: "",
@@ -53,10 +54,10 @@ describe("parseSchedule", () => {
     expect(entries[2].status).toBe("Ditunda");
   });
 
-  it("computes a stable hash for each parsed entry", () => {
+  it("computes a stable hash for each parsed entry (tutor+student+language+date)", () => {
     const html = readFileSync(join(FIXTURES, "schedule-single-day.html"), "utf8");
     const entries = parseSchedule(html, "2026-09-03");
-    const expected = computeHash("Juan Pérez", "English", "2026-09-03");
+    const expected = computeHash("Marcos Lopez", "Juan Pérez", "English", "2026-09-03");
     expect(entries[0].hash).toBe(expected);
   });
 
@@ -90,6 +91,11 @@ describe("parseSchedule", () => {
             <span class="fh-cell-time">09:00 – 10:00</span>
           </div>
           <div class="fh-cell-siswa" role="cell"></div>
+          <div class="fh-cell-tutor" role="cell">
+            <a href="https://ngobrolyuk.com/tutor/marcos-lopez/" class="fh-tutor-pill" title="Marcos Lopez">
+              <span class="fh-tutor-pill-name">Marcos Lopez</span>
+            </a>
+          </div>
           <div class="fh-cell-bahasa-wrap" role="cell">
             <span class="fh-lang-badge fh-lang-english">English</span>
           </div>
@@ -102,6 +108,11 @@ describe("parseSchedule", () => {
             <span class="fh-cell-time">10:00 – 11:00</span>
           </div>
           <div class="fh-cell-siswa" role="cell">Ana Torres</div>
+          <div class="fh-cell-tutor" role="cell">
+            <a href="https://ngobrolyuk.com/tutor/marcos-lopez/" class="fh-tutor-pill" title="Marcos Lopez">
+              <span class="fh-tutor-pill-name">Marcos Lopez</span>
+            </a>
+          </div>
           <div class="fh-cell-bahasa-wrap" role="cell">
             <span class="fh-lang-badge fh-lang-english">English</span>
           </div>
