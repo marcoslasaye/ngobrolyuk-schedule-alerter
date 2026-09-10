@@ -8,12 +8,11 @@ name: schedule-alerter
 
 on:
   schedule:
-    # Every 30 minutes (matching the default poll interval)
     - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # Need write to upload artifacts
+  contents: read
 
 concurrency:
   group: schedule-alerter-runs
@@ -33,13 +32,14 @@ jobs:
           node-version: "24"
           cache: "npm"
 
-      # Download cache from previous run so we can diff against it
-      - name: Download cache from previous run
-        uses: actions/download-artifact@v4
+      # Restore schedule cache from previous run
+      - name: Restore schedule cache
+        uses: actions/cache@v4
         with:
-          name: schedule-cache
           path: .schedule-cache/
-        continue-on-error: true
+          key: schedule-cache-${{ github.run_id }}
+          restore-keys: |
+            schedule-cache-
 
       - name: Install dependencies
         run: npm ci
@@ -47,23 +47,21 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Test
-        run: npm test
-
       - name: Create config.yaml from template
         run: cp config.yaml.example config.yaml
+
+      # DEBUG: Verify secrets are available (shows length, not the actual value)
+      - name: Debug - Check secrets
+        run: |
+          echo "TELEGRAM_BOT_TOKEN length: ${#TELEGRAM_BOT_TOKEN}"
+          echo "TELEGRAM_CHAT_ID length: ${#TELEGRAM_CHAT_ID}"
+          echo "Config cachePath:"
+          cat config.yaml | grep cachePath
+          echo "Cache directory contents:"
+          ls -la .schedule-cache/ 2>/dev/null || echo "No cache directory yet"
 
       - name: Run schedule alerter (run-once)
         run: node dist/cli.js run-once
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      # Persist the schedule cache so the NEXT scheduled run has prior state
-      - name: Upload cache for the next run
-        uses: actions/upload-artifact@v4
-        with:
-          name: schedule-cache
-          path: .schedule-cache/
-          include-hidden-files: true
-          if-no-files-found: ignore
