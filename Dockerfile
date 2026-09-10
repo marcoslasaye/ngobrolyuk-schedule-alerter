@@ -76,4 +76,4 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
 
 # Default: run the continuous daemon. Override with "run-once" for a single
 # cycle (e.g. scheduled runs) or "test-config" / "test-notifier".
-CMD ["node", "dist/cli.js", "start"]
+CMD ["sh", "-c", "cp config.yaml.example config.yaml && node dist/cli.js start"]
