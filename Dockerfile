@@ -63,6 +63,11 @@ RUN npm ci --omit=dev
 # Non-root user — the container runs with least privilege. The app reads its
 # config from cwd(config.yaml) or ~/.schedule-alerter/config.yaml, and its
 # cache from ~/.schedule-cache/. Ensure the app user can write both.
+# Create config.yaml from template at build time (as root) so the non-root
+# user doesn't need write access to /app.  Env-var interpolation happens at
+# runtime when the app loads the config.
+RUN cp config.yaml.example config.yaml
+
 RUN addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
   && mkdir -p /home/nodeapp/.schedule-alerter /home/nodeapp/.schedule-cache \
   && chown -R nodeapp:nodeapp /home/nodeapp
@@ -76,4 +81,4 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
 
 # Default: run the continuous daemon. Override with "run-once" for a single
 # cycle (e.g. scheduled runs) or "test-config" / "test-notifier".
-CMD ["sh", "-c", "cp config.yaml.example config.yaml && node dist/cli.js start"]
+CMD ["node", "dist/cli.js", "start"]
