@@ -75,8 +75,8 @@ RUN cp config.yaml.example config.yaml \
   && cp config.yaml.example /home/nodeapp/.schedule-alerter/config.yaml
 
 RUN addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
-  && mkdir -p /home/nodeapp/.schedule-cache \
-  && chown -R nodeapp:nodeapp /home/nodeapp
+  && mkdir -p /home/nodeapp/.schedule-cache /app/.schedule-cache \
+  && chown -R nodeapp:nodeapp /home/nodeapp /app/.schedule-cache
 
 USER nodeapp
 
