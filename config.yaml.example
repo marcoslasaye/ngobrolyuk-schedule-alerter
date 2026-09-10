@@ -25,15 +25,10 @@ whatsapp:
 # Fallback delivery after 3 consecutive WhatsApp failures.
 # type: email | telegram | none
 fallback:
-  type: "email"
+  type: "telegram"
   config:
-    smtpHost: "smtp.gmail.com"
-    smtpPort: 465
-    secure: true
-    user: "${SMTP_USER}"
-    pass: "${SMTP_PASS}"
-    to: "marcos@example.com"
-    from: "${SMTP_USER}"
+    botToken: "${TELEGRAM_BOT_TOKEN}"
+    chatId: "${TELEGRAM_CHAT_ID}"
 
 # Where the JSON cache lives (defaults to ~/.schedule-cache/)
 # In GitHub Actions, use relative path: .schedule-cache/
