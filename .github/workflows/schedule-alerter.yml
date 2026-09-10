@@ -2,7 +2,7 @@
 #
 # Runs the scraper every 30 minutes on GitHub's hosted runners.
 # Each run fetches the 7-day schedule, diffs against cache, and alerts
-# WhatsApp/CallMeBot if anything changed. Uses the `run-once` mode.
+# Telegram if anything changed. Uses the `run-once` mode.
 
 name: schedule-alerter
 
@@ -35,6 +35,20 @@ jobs:
           node-version: "20"
           cache: "npm"
 
+      # Download cache from previous run so we can diff against it
+      - name: Download cache from previous run
+        uses: actions/download-artifact@v4
+        with:
+          name: schedule-cache
+          path: .schedule-cache/
+        continue-on-error: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
       # Cache the installed node_modules so clean scheduled runs skip the
       # expensive `npm ci` dependency resolution when the lockfile is unchanged.
       - name: Cache node_modules
@@ -54,23 +68,17 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Create config from template
+      - name: Create config.yaml from template with real secrets
         run: |
           cp config.yaml.example config.yaml
-          # Secrets are injected as env vars below; config reads ${VAR}
-          # placeholders and interpolates them at runtime.
+          # The config reads ${VAR} placeholders and interpolates them at runtime
+          # from environment variables (which we set below)
 
       - name: Run schedule alerter (run-once)
         run: node dist/cli.js run-once
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # WhatsApp disabled (optional): uncomment if you add CallMeBot secrets
-          # WHATSAPP_API_KEY: ${{ secrets.WHATSAPP_API_KEY }}
-          # WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
-          # Email fallback (optional): uncomment if you add Gmail app password
-          # SMTP_USER: ${{ secrets.SMTP_USER }}
-          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
 
       # Persist the schedule cache so the NEXT scheduled run has prior state
       # to diff against (avoids a re-alert every 30 minutes).
@@ -81,8 +89,3 @@ jobs:
           path: .schedule-cache/
           include-hidden-files: true
           if-no-files-found: ignore
-
-      # The cache lives on the runner, but GitHub Actions ephemeral runners
-      # reset between jobs. A manual dispatch (workflow_dispatch) cannot rely
-      # on a restored artifact, so treat a missing cache as a first run — the
-      # application already suppresses the alert in that case.

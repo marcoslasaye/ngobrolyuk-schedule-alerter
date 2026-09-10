@@ -1,0 +1,66 @@
+name: daily-schedule-summary
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # 00:00 UTC = 7:00 Bali (UTC+8)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  daily-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Download cache from previous run so we have the schedule data
+      - name: Download cache from previous run
+        uses: actions/download-artifact@v4
+        with:
+          name: schedule-cache
+          path: .schedule-cache/
+        continue-on-error: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # Cache the installed node_modules so clean scheduled runs skip the
+      # expensive `npm ci` dependency resolution when the lockfile is unchanged.
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Generate daily schedule HTML
+        run: node dist/cli.js horario-hoy --html --output horario-hoy.html
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Send to Telegram
+        run: node dist/cli.js horario-hoy --telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Upload HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: horario-${{ github.run_id }}
+          path: horario-hoy.html
+          retention-days: 7
