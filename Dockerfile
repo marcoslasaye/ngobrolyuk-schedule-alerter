@@ -66,10 +66,16 @@ RUN npm ci --omit=dev
 # Create config.yaml from template at build time (as root) so the non-root
 # user doesn't need write access to /app.  Env-var interpolation happens at
 # runtime when the app loads the config.
-RUN cp config.yaml.example config.yaml
+# Create config.yaml from template at build time (as root) so the non-root
+# user doesn't need write access to /app.  Env-var interpolation happens at
+# runtime when the app loads the config.
+# Place it in BOTH locations the loader searches: cwd and ~/.schedule-alerter/
+RUN cp config.yaml.example config.yaml \
+  && mkdir -p /home/nodeapp/.schedule-alerter \
+  && cp config.yaml.example /home/nodeapp/.schedule-alerter/config.yaml
 
 RUN addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
-  && mkdir -p /home/nodeapp/.schedule-alerter /home/nodeapp/.schedule-cache \
+  && mkdir -p /home/nodeapp/.schedule-cache \
   && chown -R nodeapp:nodeapp /home/nodeapp
 
 USER nodeapp
