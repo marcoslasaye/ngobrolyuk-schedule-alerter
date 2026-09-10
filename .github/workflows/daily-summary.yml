@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # Need write to commit HTML file
+  contents: read
 
 jobs:
   daily-summary:
@@ -15,21 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Download cache from previous run so we have the schedule data
-      - name: Download cache from previous run
-        uses: actions/download-artifact@v4
-        with:
-          name: schedule-cache
-          path: .schedule-cache/
-        continue-on-error: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       # Cache the installed node_modules so clean scheduled runs skip the
@@ -54,24 +44,8 @@ jobs:
           # The config reads ${VAR} placeholders and interpolates them at runtime
           # from environment variables (which we set below)
 
-      - name: Generate daily schedule HTML with date-based filename
-        run: |
-          DATE=$(date -u +"%Y-%m-%d")
-          node dist/cli.js horario-hoy --html --output "horarios/horario-${DATE}.html"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Send to Telegram
+      - name: Send daily schedule to Telegram
         run: node dist/cli.js horario-hoy --telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Commit and push HTML file
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add horarios/
-          git commit -m "📅 Add daily schedule $(date -u +'%Y-%m-%d')" || echo "No changes to commit"
-          git push
