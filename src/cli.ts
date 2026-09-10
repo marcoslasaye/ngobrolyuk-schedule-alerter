@@ -49,6 +49,9 @@ export type CommandName =
 /** Result of parsing argv — the command plus any captured flags. */
 export interface ParsedArgs {
   command: CommandName;
+  html?: boolean;
+  telegram?: boolean;
+  output?: string;
 }
 
 /**
@@ -66,6 +69,10 @@ export interface CliServices {
   testNotifier(): Promise<DeliveryResult>;
   /** Fetch and return today's schedule for Marcos Lopez. */
   fetchTodaySchedule(): Promise<ScheduleEntry[]>;
+  /** Generate HTML for today's schedule. */
+  generateScheduleHtml(entries: ScheduleEntry[], outputPath?: string): Promise<void>;
+  /** Send today's schedule to Telegram. */
+  sendScheduleToTelegram(entries: ScheduleEntry[]): Promise<DeliveryResult>;
   /** Version string to report. */
   version: string;
 }
@@ -75,34 +82,69 @@ export interface CliServices {
  * given (mirrors `npm start` behavior).
  */
 export function parseArgs(argv: string[]): ParsedArgs {
-  const arg = argv[0];
+  const args: ParsedArgs = { command: "unknown" };
+  let commandFound = false;
 
-  switch (arg) {
-    case undefined:
-    case "start":
-      return { command: "start" };
-    case "run-once":
-      return { command: "run-once" };
-    case "test-config":
-      return { command: "test-config" };
-    case "test-notifier":
-      return { command: "test-notifier" };
-    case "horario-hoy":
-      return { command: "horario-hoy" };
-    case "--help":
-    case "-h":
-      return { command: "help" };
-    case "--version":
-    case "-V":
-      return { command: "version" };
-    default:
-      return { command: "unknown" };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+
+    // Handle long flags (--xxx)
+    if (arg.startsWith("--")) {
+      if (arg === "--html") args.html = true;
+      else if (arg === "--telegram") args.telegram = true;
+      else if (arg === "--help" || arg === "-h") {
+        args.command = "help";
+        commandFound = true;
+      }
+      else if (arg === "--version" || arg === "-V") {
+        args.command = "version";
+        commandFound = true;
+      }
+      else if (arg.startsWith("--output=")) args.output = arg.split("=")[1];
+      else if (arg === "--output") args.output = argv[++i];
+    }
+    // Handle short flags (-x) that are not part of a word
+    else if (arg.startsWith("-") && arg.length === 2) {
+      const shortFlag = arg[1];
+      if (shortFlag === "h") {
+        args.command = "help";
+        commandFound = true;
+      } else if (shortFlag === "V") {
+        args.command = "version";
+        commandFound = true;
+      }
+    }
+    // Handle positional commands
+    else if (!commandFound && !arg.startsWith("-")) {
+      switch (arg) {
+        case "start":
+        case "run-once":
+        case "test-config":
+        case "test-notifier":
+        case "horario-hoy":
+        case "help":
+        case "version":
+          args.command = arg;
+          commandFound = true;
+          break;
+        default:
+          // unknown command - keep as unknown
+          break;
+      }
+    }
   }
+
+  if (!commandFound) {
+    // Default to start if no command found
+    args.command = "start";
+  }
+
+  return args;
 }
 
 /** Print the usage banner to stdout. */
 function printUsage(): void {
-  console.log("Usage: schedule-alerter <command>");
+  console.log("Usage: schedule-alerter <command> [options]");
   console.log("");
   console.log("Commands:");
   console.log("  start          Run as a local daemon on the configured poll interval");
@@ -110,6 +152,12 @@ function printUsage(): void {
   console.log("  test-config    Validate config.yaml and exit");
   console.log("  test-notifier  Probe the WhatsApp/fallback delivery channel");
   console.log("  horario-hoy    Show today's classes for Marcos Lopez");
+  console.log("");
+  console.log("Options (for horario-hoy):");
+  console.log("  --html              Generate HTML file");
+  console.log("  --telegram          Send to Telegram");
+  console.log("  --output <path>     Output path for HTML (default: horario-hoy.html)");
+  console.log("");
   console.log("  help, -h, --help     Show this help");
   console.log("  version, -V          Show the version");
 }
@@ -119,10 +167,10 @@ function printUsage(): void {
  * All commands print to stdout/stderr; never throws.
  */
 export async function dispatch(
-  command: CommandName,
+  args: ParsedArgs,
   services: CliServices,
 ): Promise<number> {
-  switch (command) {
+  switch (args.command) {
     case "start": {
       const result = services.startDaemon();
       if (result.running) {
@@ -173,19 +221,41 @@ export async function dispatch(
     case "horario-hoy": {
       try {
         const entries = await services.fetchTodaySchedule();
-        if (entries.length === 0) {
-          console.log("📅 Hoy no hay clases para Marcos Lopez.");
-          return 0;
+        
+        // Handle --html flag
+        if (args.html) {
+          const outputPath = args.output || "horario-hoy.html";
+          await services.generateScheduleHtml(entries, outputPath);
+          console.log(`📄 HTML generated: ${outputPath}`);
         }
-        console.log(`📅 Horario de hoy para Marcos Lopez (${entries.length} clase${entries.length > 1 ? "s" : ""}):`);
-        console.log("");
-        entries.forEach((e, i) => {
-          const time = e.time;
-          const student = e.student;
-          const lang = e.language;
-          const status = e.status;
-          console.log(`  ${i + 1}. ${time}  →  ${student}  |  ${lang}  |  ${status}`);
-        });
+        
+        // Handle --telegram flag
+        if (args.telegram) {
+          const result = await services.sendScheduleToTelegram(entries);
+          if (result.success) {
+            console.log(`📱 Sent to Telegram via ${result.channel}`);
+          } else {
+            console.error(`📱 Failed to send to Telegram: ${result.error ?? "unknown"}`);
+            return 1;
+          }
+        }
+        
+        // Default: just print to console
+        if (!args.html && !args.telegram) {
+          if (entries.length === 0) {
+            console.log("📅 Hoy no hay clases para Marcos Lopez.");
+            return 0;
+          }
+          console.log(`📅 Horario de hoy para Marcos Lopez (${entries.length} clase${entries.length > 1 ? "s" : ""}):`);
+          console.log("");
+          entries.forEach((e, i) => {
+            const time = e.time;
+            const student = e.student;
+            const lang = e.language;
+            const status = e.status;
+            console.log(`  ${i + 1}. ${time}  →  ${student}  |  ${lang}  |  ${status}`);
+          });
+        }
         return 0;
       } catch (err) {
         console.error(`horario-hoy failed: ${String(err)}`);
@@ -254,6 +324,18 @@ export function buildServices(version: string): CliServices {
       });
       return parseSchedule(raw.html, today);
     },
+
+    async generateScheduleHtml(entries: ScheduleEntry[], outputPath?: string): Promise<void> {
+      const html = generateScheduleHtml(entries);
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(outputPath || "horario-hoy.html", html);
+    },
+
+    async sendScheduleToTelegram(entries: ScheduleEntry[]): Promise<DeliveryResult> {
+      const config = loadConfigFile();
+      const text = formatScheduleForTelegram(entries);
+      return sendFallback(text, config.fallback);
+    },
   };
 }
 
@@ -319,6 +401,259 @@ function resolveBaseUrl(config: ConfigSchema): string {
 }
 
 /**
+ * Generate a beautiful HTML schedule page.
+ */
+function generateScheduleHtml(entries: ScheduleEntry[]): string {
+  const today = new Date().toLocaleDateString("es-ES", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Makassar",
+  });
+
+  const cards = entries.map((e, i) => `
+    <article class="class-card" style="--i: ${i}">
+      <div class="class-time">${e.time}</div>
+      <div class="class-info">
+        <div class="class-student">${escapeHtml(e.student)}</div>
+        <div class="class-meta">
+          <span class="class-language">${escapeHtml(e.language)}</span>
+          <span class="class-status status-${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+      </div>
+    </article>
+  `).join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horario de ${today} - Marcos Lopez</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --fg: #f1f5f9;
+      --fg-muted: #94a3b8;
+      --accent: #22d3ee;
+      --accent-glow: rgba(34, 211, 238, 0.3);
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --border: #334155;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --bg-card: #ffffff;
+        --fg: #0f172a;
+        --fg-muted: #64748b;
+        --accent: #06b6d4;
+        --accent-glow: rgba(6, 182, 212, 0.2);
+        --border: #e2e8f0;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: clamp(1.75rem, 5vw, 2.5rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--fg), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+    .date {
+      color: var(--fg-muted);
+      font-size: 1.1rem;
+    }
+    .count {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.35rem 1rem;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .schedule {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .class-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      opacity: 0;
+      animation: slideIn 0.4s ease forwards;
+      animation-delay: calc(var(--i) * 0.08s);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .class-card:hover {
+      transform: translateX(4px);
+      box-shadow: 0 8px 32px var(--accent-glow);
+      border-color: var(--accent);
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .class-time {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+      min-width: 100px;
+    }
+    .class-info { flex: 1; }
+    .class-student {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .class-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .class-language {
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.25rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      color: var(--fg-muted);
+    }
+    .class-status {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .status-selesai { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .status-ditunda { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .status-selanjutnya { background: rgba(34, 211, 238, 0.15); color: var(--accent); }
+    .status-confirmed { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+    .status-pending { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--error); }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--fg-muted);
+    }
+    .empty-state svg { width: 80px; height: 80px; margin-bottom: 1rem; opacity: 0.5; }
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      color: var(--fg-muted);
+      font-size: 0.875rem;
+    }
+    @media (max-width: 480px) {
+      .class-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+      .class-time { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📅 Horario de Hoy</h1>
+      <div class="date">Marcos Lopez · ${today}</div>
+      <div class="count">${entries.length} clase${entries.length !== 1 ? "s" : ""}</div>
+    </header>
+    ${entries.length === 0
+      ? `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7V3M12 7V3M16 7V3M10 10H14M8 14H16M8 18H16"/></svg><p>Hoy no hay clases programadas</p></div>`
+      : `<div class="schedule">${cards}</div>`
+    }
+    <footer>
+      <p>Generado automáticamente · Ngobrol Yuk Schedule</p>
+    </footer>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Format schedule for Telegram message.
+ */
+function formatScheduleForTelegram(entries: ScheduleEntry[]): string {
+  const today = new Date().toLocaleDateString("es-ES", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Makassar",
+  });
+
+  if (entries.length === 0) {
+    return `📅 <b>Horario de hoy (${today})</b>\n\n😴 No hay clases programadas para hoy.`;
+  }
+
+  let text = `📅 <b>Horario de hoy (${today})</b>\n`;
+  text += `👨‍🏫 <b>Marcos Lopez</b> · ${entries.length} clase${entries.length !== 1 ? "s" : ""}\n\n`;
+
+  entries.forEach((e, i) => {
+    const statusEmoji = {
+      selesai: "✅",
+      ditunda: "⏳",
+      selanjutnya: "▶️",
+      confirmed: "✅",
+      pending: "⏳",
+      cancelled: "❌",
+    }[e.status.toLowerCase()] || "📍";
+
+    text += `${i + 1}. ${statusEmoji} <b>${e.time}</b>\n`;
+    text += `    👤 ${e.student}\n`;
+    text += `    🌐 ${e.language} · ${e.status}\n\n`;
+  });
+
+  text += `<i>Ngobrol Yuk Schedule</i>`;
+  return text;
+}
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    "&": "\u0026amp;",
+    "<": "\u0026lt;",
+    ">": "\u0026gt;",
+    '"': "\u0026quot;",
+    "'": "\u0026#039;",
+  };
+  return text.replace(/[&<>"']/g, (match) => map[match] || match);
+}
+
+/**
  * Normalize the configured cachePath. The default in config.yaml is
  * `~/.schedule-cache`, but cachePathFor() expects a directory path.
  * Empty cachePath falls back to the OS default via loadCache()/saveCache().
@@ -332,7 +667,7 @@ function normalizeCachePath(cachePath: string): string | undefined {
  * sets the process exit code based on the command result.
  */
 export function main(): void {
-  const { command } = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2));
 
   const version =
     process.env["npm_package_version"] ??
@@ -349,7 +684,7 @@ export function main(): void {
 
   const services = buildServices(version);
 
-  void dispatch(command, services).then((code) => {
+  void dispatch(args, services).then((code) => {
     if (code !== 0) {
       process.exitCode = code;
     }

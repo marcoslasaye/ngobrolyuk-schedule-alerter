@@ -33,3 +33,6 @@ Thumbs.db
 # OpenCode/Engram local state
 .atl/
 .engram/
+
+# Generated test output
+test-horario.html

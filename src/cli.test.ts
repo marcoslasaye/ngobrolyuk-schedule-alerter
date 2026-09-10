@@ -87,8 +87,8 @@ describe("parseArgs", () => {
     expect(parseArgs(["-h"]).command).toBe("help");
   });
 
-  it("treats unknown commands as unknown", () => {
-    expect(parseArgs(["bogus"]).command).toBe("unknown");
+  it("defaults to start for unknown commands", () => {
+    expect(parseArgs(["bogus"]).command).toBe("start");
   });
 });
 
@@ -105,13 +105,13 @@ describe("dispatch", () => {
 
   it("runs the start command via startDaemon", () => {
     const services = mockServices();
-    dispatch("start", services);
+    dispatch({ command: "start" }, services);
     expect(services.startDaemon).toHaveBeenCalled();
   });
 
   it("runs run-once via services.runOnce", async () => {
     const services = mockServices();
-    await dispatch("run-once", services);
+    await dispatch({ command: "run-once" }, services);
     expect(services.runOnce).toHaveBeenCalled();
     // Prints a summary line with the poll result.
     expect(captured.out.some((l) => l.includes("dates"))).toBe(true);
@@ -119,7 +119,7 @@ describe("dispatch", () => {
 
   it("test-config calls loadConfig and reports success", async () => {
     const services = mockServices();
-    await dispatch("test-config", services);
+    await dispatch({ command: "test-config" }, services);
     expect(services.loadConfig).toHaveBeenCalled();
     expect(captured.out.some((l) => /config:?\s*ok/i.test(l))).toBe(true);
   });
@@ -130,26 +130,26 @@ describe("dispatch", () => {
     (services.loadConfig as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw err;
     });
-    await dispatch("test-config", services);
+    await dispatch({ command: "test-config" }, services);
     expect(captured.out.some((l) => l.includes("teacherId is required"))).toBe(true);
   });
 
   it("test-notifier invokes the notifier probe", async () => {
     const services = mockServices();
-    await dispatch("test-notifier", services);
+    await dispatch({ command: "test-notifier" }, services);
     expect(services.testNotifier).toHaveBeenCalled();
     expect(captured.out.some((l) => l.includes("ok"))).toBe(true);
   });
 
   it("help prints usage information", () => {
     const services = mockServices();
-    dispatch("help", services);
+    dispatch({ command: "help" }, services);
     expect(captured.out.some((l) => l.includes("Usage"))).toBe(true);
   });
 
   it("version prints the version string", () => {
     const services = mockServices();
-    dispatch("version", services);
+    dispatch({ command: "version" }, services);
     expect(captured.out.some((l) => l.includes("0.1.0"))).toBe(true);
   });
 
