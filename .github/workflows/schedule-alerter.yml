@@ -12,10 +12,8 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
-# Permission to read the repo, plus abort in-flight runs when a new one
-# (e.g. a manual dispatch) supersedes a queued scheduled run.
 permissions:
-  contents: read
+  contents: write  # Need write to upload artifacts
 
 concurrency:
   group: schedule-alerter-runs
@@ -24,7 +22,7 @@ concurrency:
 jobs:
   run-once:
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # stay well inside the hosted-runner job limit
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,22 +41,6 @@ jobs:
           path: .schedule-cache/
         continue-on-error: true
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-
-      # Cache the installed node_modules so clean scheduled runs skip the
-      # expensive `npm ci` dependency resolution when the lockfile is unchanged.
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-modules-
-
       - name: Install dependencies
         run: npm ci
 
@@ -68,11 +50,8 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Create config.yaml from template with real secrets
-        run: |
-          cp config.yaml.example config.yaml
-          # The config reads ${VAR} placeholders and interpolates them at runtime
-          # from environment variables (which we set below)
+      - name: Create config.yaml from template
+        run: cp config.yaml.example config.yaml
 
       - name: Run schedule alerter (run-once)
         run: node dist/cli.js run-once
@@ -81,7 +60,6 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       # Persist the schedule cache so the NEXT scheduled run has prior state
-      # to diff against (avoids a re-alert every 30 minutes).
       - name: Upload cache for the next run
         uses: actions/upload-artifact@v4
         with:
