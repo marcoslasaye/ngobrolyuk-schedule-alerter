@@ -26,6 +26,7 @@ import { parseSchedule } from "./fetcher/parser.js";
 import type { ScheduleEntry } from "./fetcher/types.js";
 import { diffEntries, type DiffResult } from "./differ/engine.js";
 import { sendWhatsApp } from "./notifier/whatsapp.js";
+import { ScheduleBot } from "./notifier/bot.js";
 import { sendFallback } from "./notifier/fallback.js";
 import { AlertQueue } from "./notifier/queue.js";
 import type { DeliveryResult } from "./notifier/types.js";
@@ -401,6 +402,20 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
         return sendFallback(text, config.fallback);
       },
     },
+    // Interactive Telegram commands (/horariohoy) — only when the fallback
+    // channel is Telegram and a bot token is configured.
+    bot: config.fallback.type === "telegram" && config.fallback.config.botToken
+      ? new ScheduleBot(String(config.fallback.config.botToken), {
+          fetchToday: async () => {
+            const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
+            const raw = await fetchSchedule(today, {
+              baseUrl: resolveBaseUrl(config),
+            });
+            return parseSchedule(raw.html, today);
+          },
+          format: formatScheduleForTelegram,
+        })
+      : undefined,
     config,
   };
   return new ScheduleOrchestrator(deps);

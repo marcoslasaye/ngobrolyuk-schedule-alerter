@@ -50,6 +50,11 @@ export interface OrchestratorDeps {
   summary: {
     sendToday(): Promise<DeliveryResult>;
   };
+  /** Optional Telegram bot listener for interactive commands (e.g. /horariohoy). */
+  bot?: {
+    start(): Promise<void>;
+    stop(): Promise<void>;
+  };
   /** ConfigPort: validated config schema. */
   config: {
     teacherId: string;
@@ -220,6 +225,18 @@ export class ScheduleOrchestrator {
       }, { timezone: daily.tz });
       this.log.info({ cron: dailyExpr, tz: daily.tz }, "orchestrator:daily summary scheduled");
     }
+
+    // Optional Telegram bot listener for interactive commands (e.g. /horariohoy).
+    if (this.deps.bot) {
+      void this.deps.bot.start().then(() => {
+        this.log.info("orchestrator:telegram bot started");
+      }).catch((err) => {
+        this.log.error(
+          { err: String(err) },
+          "orchestrator:telegram bot failed to start; continuing without it",
+        );
+      });
+    }
   }
 
   /** Stop the daemon (no-op if not running). */
@@ -232,6 +249,10 @@ export class ScheduleOrchestrator {
     if (this.dailyCronTask) {
       this.dailyCronTask.stop();
       this.dailyCronTask = null;
+    }
+    // Stop the optional Telegram bot listener.
+    if (this.deps.bot) {
+      void this.deps.bot.stop();
     }
   }
 
