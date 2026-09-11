@@ -6,7 +6,7 @@
  * shape: header + one line per change with student, date (Sep 5) and time.
  */
 import { describe, it, expect } from "vitest";
-import { formatAlert, type FormatterPort } from "./formatter.js";
+import { formatAlert, TIMEZONE_NOTE, type FormatterPort } from "./formatter.js";
 import type { AlertPayload, ChangeSummary } from "./types.js";
 import type { ScheduleEntry } from "../fetcher/types.js";
 
@@ -54,6 +54,14 @@ describe("formatAlert", () => {
     expect(text).toContain("Juan Pérez");
     expect(text).toContain("Sep 5");
     expect(text).toContain("10:00");
+  });
+
+  it("appends the Jakarta timezone note to every alert", () => {
+    const text = formatAlert(
+      payload([summary("added", entry(), "New class")]),
+    );
+    expect(text).toContain(TIMEZONE_NOTE);
+    expect(text).toContain("Jakarta");
   });
 
   it("does not include level or status in the message", () => {

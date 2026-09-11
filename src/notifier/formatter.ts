@@ -11,6 +11,9 @@ import type { AlertPayload, ChangeSummary } from "./types.js";
 /** Message header for every change alert. */
 export const ALERT_HEADER = "📅 Schedule Change Alert";
 
+/** Timezone note appended to every alert so class times are unambiguous. */
+export const TIMEZONE_NOTE = "🕐 Horarios en hora de Jakarta (WIB, UTC+7)";
+
 /** Emoji/label per change type, matching the spec's message shape. */
 const CHANGE_LABEL: Record<ChangeSummary["type"], string> = {
   added: "➕ Added",
@@ -62,7 +65,7 @@ export function formatAlert(payload: AlertPayload): string {
     return "";
   }
   const lines = payload.changes.map(formatLine);
-  return [ALERT_HEADER, ...lines].join("\n");
+  return [ALERT_HEADER, ...lines, "", TIMEZONE_NOTE].join("\n");
 }
 
 /** FormatterPort interface — satisfies the design's notifier port contract. */

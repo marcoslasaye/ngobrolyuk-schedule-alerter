@@ -629,11 +629,12 @@ function formatScheduleForTelegram(entries: ScheduleEntry[]): string {
   });
 
   if (entries.length === 0) {
-    return `📅 <b>Horario de hoy (${today})</b>\n\n😴 No hay clases programadas para hoy.`;
+    return `📅 <b>Horario de hoy (${today})</b>\n\n😴 No hay clases programadas para hoy.\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)`;
   }
 
   let text = `📅 <b>Horario de hoy (${today})</b>\n`;
-  text += `👨‍🏫 <b>Marcos Lopez</b> · ${entries.length} clase${entries.length !== 1 ? "s" : ""}\n\n`;
+  text += `👨‍🏫 <b>Marcos Lopez</b> · ${entries.length} clase${entries.length !== 1 ? "s" : ""}\n`;
+  text += `🕐 Horarios en hora de Jakarta (WIB, UTC+7)\n\n`;
 
   entries.forEach((e, i) => {
     const statusEmoji = {
