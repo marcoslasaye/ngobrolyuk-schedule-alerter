@@ -17,7 +17,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import pino from "pino";
 import type { ScheduleEntry } from "../fetcher/types.js";
 import type { DiffResult } from "../differ/engine.js";
-import type { ChangeSummary, AlertPayload } from "../notifier/types.js";
+import type { ChangeSummary, AlertPayload, DeliveryResult } from "../notifier/types.js";
 import type { CacheSchema, PollResult } from "./types.js";
 
 /** ISO date string formatter (YYYY-MM-DD) used for poll dates. */
@@ -46,12 +46,17 @@ export interface OrchestratorDeps {
     load(): CacheSchema;
     save(schema: CacheSchema): void;
   };
+  /** SummarySenderPort: sends today's schedule digest to the configured channel. */
+  summary: {
+    sendToday(): Promise<DeliveryResult>;
+  };
   /** ConfigPort: validated config schema. */
   config: {
     teacherId: string;
     dateRange: number;
     pollIntervalMs: number;
     quietHours: { start: string; end: string; tz: string };
+    dailySummary: { time: string; tz: string; enabled: boolean };
     whatsapp: { provider: "callmebot"; apiKey: string; phone: string };
     fallback: { type: "email" | "telegram" | "none"; config: Record<string, string | number | boolean> };
     cachePath: string;
@@ -82,6 +87,7 @@ export class ScheduleOrchestrator {
   private readonly deps: OrchestratorDeps;
   private readonly log: pino.Logger;
   private cronTask: ScheduledTask | null = null;
+  private dailyCronTask: ScheduledTask | null = null;
 
   constructor(deps: OrchestratorDeps, logger?: pino.Logger) {
     this.deps = deps;
@@ -95,7 +101,7 @@ export class ScheduleOrchestrator {
 
   /** True when the orchestrator daemon is running. */
   get running(): boolean {
-    return this.cronTask !== null;
+    return this.cronTask !== null || this.dailyCronTask !== null;
   }
 
   /**
@@ -203,6 +209,17 @@ export class ScheduleOrchestrator {
       void this.runSafely();
     });
     this.log.info({ cron: cronExpr, intervalMs }, "orchestrator:daemon started");
+
+    // Daily schedule summary at the configured time in the configured timezone.
+    const daily = this.deps.config.dailySummary;
+    if (daily.enabled && daily.time) {
+      const [hour, minute] = daily.time.split(":");
+      const dailyExpr = `${minute} ${hour} * * *`;
+      this.dailyCronTask = cron.schedule(dailyExpr, () => {
+        void this.runDailySummarySafely();
+      }, { timezone: daily.tz });
+      this.log.info({ cron: dailyExpr, tz: daily.tz }, "orchestrator:daily summary scheduled");
+    }
   }
 
   /** Stop the daemon (no-op if not running). */
@@ -212,6 +229,10 @@ export class ScheduleOrchestrator {
       this.cronTask = null;
       this.log.info("orchestrator:daemon stopped");
     }
+    if (this.dailyCronTask) {
+      this.dailyCronTask.stop();
+      this.dailyCronTask = null;
+    }
   }
 
   /** Run one cycle, catching every error so the daemon never dies. */
@@ -220,6 +241,16 @@ export class ScheduleOrchestrator {
       await this.pollOnce();
     } catch (err) {
       this.log.error({ err: String(err) }, "orchestrator:cycle failed; continuing");
+    }
+  }
+
+  /** Send the daily summary, catching errors so the daemon never dies. */
+  private async runDailySummarySafely(): Promise<void> {
+    try {
+      const result = await this.deps.summary.sendToday();
+      this.log.info({ channel: result.channel, success: result.success }, "orchestrator:daily summary sent");
+    } catch (err) {
+      this.log.error({ err: String(err) }, "orchestrator:daily summary failed; continuing");
     }
   }
 

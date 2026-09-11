@@ -18,6 +18,7 @@
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { formatInTimeZone } from "date-fns-tz";
 import { loadConfigFile } from "./config/loader.js";
 import type { ConfigSchema } from "./config/schema.js";
 import { fetchSchedule } from "./fetcher/client.js";
@@ -318,7 +319,7 @@ export function buildServices(version: string): CliServices {
 
     async fetchTodaySchedule(): Promise<ScheduleEntry[]> {
       const config = loadConfigFile();
-      const today = new Date().toISOString().split("T")[0];
+      const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
       const raw = await fetchSchedule(today, {
         baseUrl: resolveBaseUrl(config),
       });
@@ -389,6 +390,17 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
     differ,
     queue: queue as OrchestratorDeps["queue"],
     cache,
+    summary: {
+      async sendToday(): Promise<DeliveryResult> {
+        const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
+        const raw = await fetchSchedule(today, {
+          baseUrl: resolveBaseUrl(config),
+        });
+        const entries = parseSchedule(raw.html, today);
+        const text = formatScheduleForTelegram(entries);
+        return sendFallback(text, config.fallback);
+      },
+    },
     config,
   };
   return new ScheduleOrchestrator(deps);

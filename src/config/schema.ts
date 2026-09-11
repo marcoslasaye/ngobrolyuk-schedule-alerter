@@ -30,6 +30,12 @@ export const configSchema = z.object({
     end: timeSchema,
     tz: z.string().min(1, "quietHours.tz is required"),
   }),
+  /** Daily schedule summary sent to the fallback channel (default 07:00 Bali time) */
+  dailySummary: z.object({
+    time: z.string().regex(/^\d{2}:\d{2}$/, "must be HH:mm").default("07:00"),
+    tz: z.string().min(1, "dailySummary.tz is required").default("Asia/Makassar"),
+    enabled: z.boolean().default(true),
+  }).default({ time: "07:00", tz: "Asia/Makassar", enabled: true }),
   /** WhatsApp delivery channel config (optional — can be empty when using Telegram) */
   whatsapp: z.object({
     provider: whatsappProviderSchema,

@@ -36,6 +36,15 @@ describe("ConfigSchema", () => {
     expect(config.pollIntervalMs).toBe(1800000);
   });
 
+  it("applies dailySummary defaults and validates its time format", () => {
+    const config = parseConfig(validRaw);
+    expect(config.dailySummary).toEqual({ time: "07:00", tz: "Asia/Makassar", enabled: true });
+    // time must be HH:mm
+    expect(() =>
+      parseConfig({ ...validRaw, dailySummary: { time: "7:00", tz: "Asia/Makassar", enabled: true } }),
+    ).toThrow();
+  });
+
   it("rejects config missing required teacherId", () => {
     const { teacherId, ...without } = validRaw;
     expect(() => parseConfig(without)).toThrow();

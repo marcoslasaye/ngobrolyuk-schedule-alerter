@@ -17,6 +17,13 @@ quietHours:
   end: "06:00"
   tz: "Asia/Makassar"
 
+# Daily schedule summary sent to the fallback channel (Telegram) at this time
+# in this timezone. Set enabled: false to disable the daily summary.
+dailySummary:
+  time: "07:00"           # Bali time (UTC+8)
+  tz: "Asia/Makassar"
+  enabled: true
+
 whatsapp:
   provider: "callmebot"
   apiKey: "${WHATSAPP_API_KEY}"   # env var interpolation

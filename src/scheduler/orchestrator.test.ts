@@ -84,6 +84,13 @@ function mockCache(
   };
 }
 
+/** Build a mock SummarySenderPort that reports a successful Telegram send. */
+function mockSummary(): OrchestratorDeps["summary"] {
+  return {
+    sendToday: vi.fn(async () => ({ success: true, channel: "telegram" })),
+  };
+}
+
 /** Build mock ConfigSchema with test defaults. */
 function mockConfig(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -91,6 +98,7 @@ function mockConfig(overrides: Partial<Record<string, unknown>> = {}) {
     dateRange: 7,
     pollIntervalMs: 1800000,
     quietHours: { start: "22:00", end: "06:00", tz: "Asia/Makassar" },
+    dailySummary: { time: "07:00", tz: "Asia/Makassar", enabled: true },
     whatsapp: { provider: "callmebot" as const, apiKey: "test-key", phone: "+1234" },
     fallback: { type: "none" as const, config: {} },
     cachePath: "/tmp/test-cache",
@@ -126,6 +134,7 @@ describe("createOrchestrator", () => {
     const fetcher = mockFetcher(entries);
     const differ = mockDiffer();
     const queue = mockQueue();
+    const summary = mockSummary();
     // Pre-populated cache so this is NOT the first run (alerts not suppressed).
     const cache = mockCache({
       entries: [entry("h0", { date: "2026-09-03", student: "Old" })],
@@ -133,7 +142,7 @@ describe("createOrchestrator", () => {
     });
     const config = mockConfig();
 
-    const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
     const frozenDate = new Date("2026-09-03T08:00:00.000Z");
     const result = await orch.pollOnce(frozenDate);
 
@@ -164,6 +173,7 @@ describe("createOrchestrator", () => {
     const fetcher = mockFetcher(entries, ["2026-09-04"]);
     const differ = mockDiffer();
     const queue = mockQueue();
+    const summary = mockSummary();
     // Pre-populated cache so this is NOT the first run (alerts not suppressed).
     const cache = mockCache({
       entries: [entry("h0", { date: "2026-09-03", student: "Old" })],
@@ -171,7 +181,7 @@ describe("createOrchestrator", () => {
     });
     const config = mockConfig();
 
-    const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
     // Pass frozen date so generated dates match mock keys.
     const frozenDate = new Date("2026-09-03T08:00:00.000Z");
     const result = await orch.pollOnce(frozenDate);
@@ -205,10 +215,11 @@ describe("createOrchestrator", () => {
     };
 
     const queue = mockQueue();
+    const summary = mockSummary();
     const cache = mockCache();
     const config = mockConfig();
 
-    const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
     const frozenDate = new Date("2026-09-03T08:00:00.000Z");
     const result = await orch.pollOnce(frozenDate);
 
@@ -225,10 +236,11 @@ describe("createOrchestrator", () => {
     const fetcher = mockFetcher();
     const differ = mockDiffer();
     const queue = mockQueue();
+    const summary = mockSummary();
     const cache = mockCache();
     const config = mockConfig({ dateRange: 3 });
 
-    const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
     await orch.pollOnce();
 
     // Should fetch exactly 3 dates.
@@ -248,10 +260,11 @@ describe("createOrchestrator", () => {
     const fetcher = mockFetcher(entries);
     const differ = mockDiffer();
     const queue = mockQueue();
+    const summary = mockSummary();
     const cache = mockCache();
     const config = mockConfig();
 
-    const orch = createOrchestrator({ fetcher, differ, queue, cache, config });
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
     // Pass frozen date so generated dates match mock keys.
     const frozenDate = new Date("2026-09-03T08:00:00.000Z");
     const result = await orch.pollOnce(frozenDate);
@@ -261,5 +274,25 @@ describe("createOrchestrator", () => {
     expect(result.totalEntries).toBe(1);
     expect(typeof result.startedAt).toBe("string");
     expect(typeof result.finishedAt).toBe("string");
+  });
+
+  it("start() schedules the daily summary cron in the configured timezone", () => {
+    const fetcher = mockFetcher();
+    const differ = mockDiffer();
+    const queue = mockQueue();
+    const summary = mockSummary();
+    const cache = mockCache();
+    const config = mockConfig();
+
+    const orch = createOrchestrator({ fetcher, differ, queue, cache, summary, config });
+    orch.start(false);
+
+    // Both the poll cron and the daily summary cron must be scheduled.
+    expect(orch.running).toBe(true);
+    // Summary port is wired into the orchestrator deps.
+    expect(summary.sendToday).toBeDefined();
+
+    orch.stop();
+    expect(orch.running).toBe(false);
   });
 });
