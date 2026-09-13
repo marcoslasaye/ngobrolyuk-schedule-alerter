@@ -10,9 +10,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   parseArgs,
   dispatch,
+  formatScheduleDay,
+  formatWeek,
+  labelForDate,
   type CommandName,
   type CliServices,
 } from "./cli.js";
+import type { ScheduleEntry } from "./fetcher/types.js";
 
 /** Capture output written to a fake logger/console. */
 function captureConsole() {
@@ -157,5 +161,68 @@ describe("dispatch", () => {
     const services = mockServices();
     dispatch("unknown" as CommandName, services);
     expect(captured.out.some((l) => l.startsWith("ERR"))).toBe(true);
+  });
+});
+
+/** Minimal ScheduleEntry helper for the formatter tests. */
+function entry(hash: string, time: string): ScheduleEntry {
+  return {
+    date: "2026-10-05",
+    time,
+    tutor: "Marcos Lopez",
+    student: "Student",
+    level: "Beginner",
+    language: "English",
+    status: "confirmed",
+    hash,
+  };
+}
+
+describe("formatScheduleDay", () => {
+  it("derives a deterministic long date label and renders the entry body", () => {
+    const text = formatScheduleDay([entry("h1", "10:00")], "2026-09-12");
+    expect(text).toContain("12 de septiembre de 2026");
+    expect(text).toContain("Student");
+    expect(text).toContain("10:00");
+    // Jakarta timezone note kept at the end.
+    expect(text).toContain("Jakarta (WIB, UTC+7)");
+  });
+
+  it("shows a no-classes message for an empty day", () => {
+    const text = formatScheduleDay([], "2026-09-12");
+    expect(text).toContain("12 de septiembre de 2026");
+    expect(text).toContain("No hay clases programadas");
+  });
+});
+
+describe("formatWeek", () => {
+  it("groups multiple days into labeled sections", () => {
+    const map = new Map<string, ScheduleEntry[]>([
+      ["2026-10-05", [entry("h1", "09:00"), entry("h2", "11:00")]],
+      ["2026-10-06", []],
+    ]);
+    const text = formatWeek(map);
+    expect(text).toContain("Horario de la semana");
+    expect(text).toContain("09:00");
+    expect(text).toContain("11:00");
+    expect(text).toContain("Sin clases");
+    // The Jakarta timezone note appears exactly once.
+    expect(text.match(/Jakarta/g)).toHaveLength(1);
+  });
+});
+
+describe("labelForDate", () => {
+  const now = new Date("2026-09-11T12:00:00Z");
+
+  it("labels today as 'hoy'", () => {
+    expect(labelForDate("2026-09-11", "Asia/Makassar", now)).toBe("hoy");
+  });
+
+  it("labels tomorrow as 'mañana'", () => {
+    expect(labelForDate("2026-09-12", "Asia/Makassar", now)).toBe("mañana");
+  });
+
+  it("labels other dates with weekday and dd/MM", () => {
+    expect(labelForDate("2026-09-20", "Asia/Makassar", now)).toContain("20/09");
   });
 });

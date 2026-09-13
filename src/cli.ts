@@ -26,7 +26,7 @@ import { parseSchedule } from "./fetcher/parser.js";
 import type { ScheduleEntry } from "./fetcher/types.js";
 import { diffEntries, type DiffResult } from "./differ/engine.js";
 import { sendWhatsApp } from "./notifier/whatsapp.js";
-import { ScheduleBot } from "./notifier/bot.js";
+import { ScheduleBot, addDays } from "./notifier/bot.js";
 import { sendFallback } from "./notifier/fallback.js";
 import { AlertQueue } from "./notifier/queue.js";
 import type { DeliveryResult } from "./notifier/types.js";
@@ -335,7 +335,8 @@ export function buildServices(version: string): CliServices {
 
     async sendScheduleToTelegram(entries: ScheduleEntry[]): Promise<DeliveryResult> {
       const config = loadConfigFile();
-      const text = formatScheduleForTelegram(entries);
+      const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
+      const text = formatScheduleDay(entries, today);
       return sendFallback(text, config.fallback);
     },
   };
@@ -398,22 +399,24 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
           baseUrl: resolveBaseUrl(config),
         });
         const entries = parseSchedule(raw.html, today);
-        const text = formatScheduleForTelegram(entries);
+        const text = formatScheduleDay(entries, today);
         return sendFallback(text, config.fallback);
       },
     },
-    // Interactive Telegram commands (/horariohoy) — only when the fallback
-    // channel is Telegram and a bot token is configured.
+    // Interactive Telegram commands (/horariohoy, /manana, /semana) — only
+    // when the fallback channel is Telegram and a bot token is configured.
     bot: config.fallback.type === "telegram" && config.fallback.config.botToken
       ? new ScheduleBot(String(config.fallback.config.botToken), {
-          fetchToday: async () => {
-            const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
-            const raw = await fetchSchedule(today, {
+          tz: config.dailySummary.tz,
+          fetchByDate: async (date) => {
+            const raw = await fetchSchedule(date, {
               baseUrl: resolveBaseUrl(config),
             });
-            return parseSchedule(raw.html, today);
+            return parseSchedule(raw.html, date);
           },
-          format: formatScheduleForTelegram,
+          formatDay: formatScheduleDay,
+          formatWeek,
+          labelFor: (date) => labelForDate(date, config.dailySummary.tz),
         })
       : undefined,
     config,
@@ -632,41 +635,108 @@ function generateScheduleHtml(entries: ScheduleEntry[]): string {
 }
 
 /**
- * Format schedule for Telegram message.
+ * Long Spanish label for a YYYY-MM-DD date, e.g. "sábado, 12 de septiembre de 2026".
+ * Deterministic: the date is parsed at noon UTC so the calendar day never
+ * shifts across timezone boundaries.
  */
-function formatScheduleForTelegram(entries: ScheduleEntry[]): string {
-  const today = new Date().toLocaleDateString("es-ES", {
+function longDateLabel(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+  return parsed.toLocaleDateString("es-ES", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
     timeZone: "Asia/Makassar",
   });
+}
+
+/**
+ * Human label for a date vs today (in `tz`): "hoy", "mañana", or a
+ * weekday + dd/MM label (e.g. "jueves, 12/09"). Pure: `now` is
+ * injectable so tests are deterministic.
+ */
+export function labelForDate(
+  date: string,
+  tz: string,
+  now: Date = new Date(),
+): string {
+  const today = formatInTimeZone(now, tz, "yyyy-MM-dd");
+  if (date === today) {
+    return "hoy";
+  }
+  if (date === addDays(today, 1)) {
+    return "mañana";
+  }
+  const [year, month, day] = date.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+  return parsed.toLocaleDateString("es-ES", {
+    weekday: "long",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: tz,
+  });
+}
+
+/** Render a single schedule entry as one numbered Telegram HTML block. */
+function renderEntry(entry: ScheduleEntry, index: number): string {
+  const statusEmoji = {
+    selesai: "✅",
+    ditunda: "⏳",
+    selanjutnya: "▶️",
+    confirmed: "✅",
+    pending: "⏳",
+    cancelled: "❌",
+  }[entry.status.toLowerCase()] || "📍";
+
+  return (
+    `${index + 1}. ${statusEmoji} <b>${entry.time}</b>\n` +
+    `    👤 ${entry.student}\n` +
+    `    🌐 ${entry.language} · ${entry.status}`
+  );
+}
+
+/**
+ * Format a single day's schedule for the Telegram message (HTML).
+ * The header label derives deterministically from the given date, and the
+ * "hoy"/"mañana" scope is resolved against today in the owner timezone.
+ */
+export function formatScheduleDay(entries: ScheduleEntry[], date: string): string {
+  const scope = labelForDate(date, "Asia/Makassar");
+  const headerScope = scope === "hoy" ? "de hoy" : scope === "mañana" ? "de mañana" : scope;
+  const header = `📅 <b>Horario ${headerScope} (${longDateLabel(date)})</b>`;
 
   if (entries.length === 0) {
-    return `📅 <b>Horario de hoy (${today})</b>\n\n😴 No hay clases programadas para hoy.\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)`;
+    return `${header}\n\n😴 No hay clases programadas para hoy.\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)`;
   }
 
-  let text = `📅 <b>Horario de hoy (${today})</b>\n`;
+  let text = `${header}\n`;
   text += `👨‍🏫 <b>Marcos Lopez</b> · ${entries.length} clase${entries.length !== 1 ? "s" : ""}\n`;
   text += `🕐 Horarios en hora de Jakarta (WIB, UTC+7)\n\n`;
 
-  entries.forEach((e, i) => {
-    const statusEmoji = {
-      selesai: "✅",
-      ditunda: "⏳",
-      selanjutnya: "▶️",
-      confirmed: "✅",
-      pending: "⏳",
-      cancelled: "❌",
-    }[e.status.toLowerCase()] || "📍";
+  text += entries.map(renderEntry).join("\n\n");
+  text += "\n\n<i>Ngobrol Yuk Schedule</i>";
+  return text;
+}
 
-    text += `${i + 1}. ${statusEmoji} <b>${e.time}</b>\n`;
-    text += `    👤 ${e.student}\n`;
-    text += `    🌐 ${e.language} · ${e.status}\n\n`;
+/**
+ * Format multiple days' schedules (keyed by YYYY-MM-DD) as one weekly
+ * Telegram message (HTML). Each day is a labeled section; days with no
+ * entries show "Sin clases". The Jakarta timezone note appears once.
+ */
+export function formatWeek(entriesByDate: ReadonlyMap<string, ScheduleEntry[]>): string {
+  const sections = [...entriesByDate.entries()].map(([date, entries]) => {
+    const label = labelForDate(date, "Asia/Makassar");
+    const body = entries.length === 0
+      ? "😴 Sin clases"
+      : entries.map(renderEntry).join("\n\n");
+    return `<b>${label}</b>\n${body}`;
   });
 
-  text += `<i>Ngobrol Yuk Schedule</i>`;
+  let text = `📅 <b>Horario de la semana</b>\n\n`;
+  text += sections.join("\n\n");
+  text += `\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)\n`;
+  text += `\n<i>Ngobrol Yuk Schedule</i>`;
   return text;
 }
 
