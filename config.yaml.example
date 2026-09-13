@@ -34,7 +34,7 @@ whatsapp:
 fallback:
   type: "telegram"
   config:
-    # Telegram also enables interactive commands: /horariohoy (schedule on demand)
+    # Telegram also enables interactive commands: /hoy (schedule on demand)
     botToken: "${TELEGRAM_BOT_TOKEN}"
     chatId: "${TELEGRAM_CHAT_ID}"
 

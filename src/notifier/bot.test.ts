@@ -45,7 +45,7 @@ function mockDeps(): ScheduleBotDeps {
 describe("buildHelpReply", () => {
   it("returns Spanish help text mentioning all three commands", () => {
     const text = buildHelpReply();
-    expect(text).toContain("/horariohoy");
+    expect(text).toContain("/hoy");
     expect(text).toContain("/manana");
     expect(text).toContain("/semana");
     expect(text).toContain("horario");

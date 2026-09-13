@@ -1,5 +1,5 @@
 /**
- * Telegram bot listener — interactive commands (e.g. /horariohoy, /manana).
+ * Telegram bot listener — interactive commands (e.g. /hoy, /manana).
  *
  * Wraps a Telegraf long-polling instance so the daemon can answer
  * on-demand schedule requests from Telegram. The class owns no process
@@ -35,7 +35,7 @@ export function buildErrorReply(): string {
 export function buildHelpReply(): string {
   return (
     "📅 <b>Ngobrol Yuk Schedule</b>\n\n" +
-    "Usa <b>/horariohoy</b> para ver el horario de clases de hoy.\n" +
+    "Usa <b>/hoy</b> para ver el horario de clases de hoy.\n" +
     "Usa <b>/manana</b> para ver el horario de clases de mañana.\n" +
     "Usa <b>/semana</b> para ver el horario de los próximos " +
     `${WEEK_DAYS} días.\n\n` +
@@ -84,7 +84,7 @@ export class ScheduleBot {
       return;
     }
 
-    this.bot.command("horariohoy", async (ctx) => {
+    this.bot.command("hoy", async (ctx) => {
       try {
         const today = todayDate(this.deps.tz);
         const entries = await this.deps.fetchByDate(today);

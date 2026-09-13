@@ -403,7 +403,7 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
         return sendFallback(text, config.fallback);
       },
     },
-    // Interactive Telegram commands (/horariohoy, /manana, /semana) — only
+    // Interactive Telegram commands (/hoy, /manana, /semana) — only
     // when the fallback channel is Telegram and a bot token is configured.
     bot: config.fallback.type === "telegram" && config.fallback.config.botToken
       ? new ScheduleBot(String(config.fallback.config.botToken), {
