@@ -33,7 +33,7 @@ describe("ConfigSchema", () => {
   it("applies defaults for dateRange and pollIntervalMs", () => {
     const config = parseConfig({ ...validRaw, dateRange: undefined as any, pollIntervalMs: undefined as any });
     expect(config.dateRange).toBe(7);
-    expect(config.pollIntervalMs).toBe(1800000);
+    expect(config.pollIntervalMs).toBe(300000);
   });
 
   it("applies dailySummary defaults and validates its time format", () => {

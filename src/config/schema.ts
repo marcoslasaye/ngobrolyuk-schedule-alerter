@@ -2,7 +2,7 @@
  * ConfigSchema — Zod schema for config.yaml.
  *
  * Validates the structure at startup, applies defaults for optional
- * fields (dateRange=7, pollIntervalMs=1800000), and exports the inferred
+ * fields (dateRange=7, pollIntervalMs=300000), and exports the inferred
  * TypeScript type ConfigSchema used across the codebase.
  */
 import { z } from "zod";
@@ -22,8 +22,8 @@ export const configSchema = z.object({
   teacherId: z.string().min(1, "teacherId is required"),
   /** Number of days to look ahead (default 7) */
   dateRange: z.number().int().positive().default(7),
-  /** Time between poll cycles in ms (default 30 minutes) */
-  pollIntervalMs: z.number().int().positive().default(1800000),
+  /** Time between poll cycles in ms (default 5 minutes) */
+  pollIntervalMs: z.number().int().positive().default(300000),
   /** Quiet hours during which alerts are suppressed */
   quietHours: z.object({
     start: timeSchema,

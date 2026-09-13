@@ -88,9 +88,8 @@ describe("AlertQueue", () => {
     );
     expect(onSend).toHaveBeenCalledTimes(1);
     const text = onSend.mock.calls[0][0] as string;
-    expect(text).toContain("Juan");
-    expect(text).toContain("Ana");
-    expect(text).toContain("Lucia");
+    expect(text).toContain("🔔 Cambios en tu horario");
+    expect(text).toContain("/hoy");
     expect(q.queuedCount).toBe(0);
   });
 
@@ -106,7 +105,9 @@ describe("AlertQueue", () => {
     );
     expect(onSend).toHaveBeenCalledTimes(1);
     const text = onSend.mock.calls[0][0] as string;
-    expect(text.split("Juan").length - 1).toBe(1);
+    // Dedup merged before formatting — the simple alert is identical
+    // regardless of how many changes were in the cycle.
+    expect(text).toContain("🔔 Cambios en tu horario");
   });
 
   it("triggers fallback after 3 consecutive WhatsApp failures and resets on success", async () => {

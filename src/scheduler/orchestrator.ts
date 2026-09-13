@@ -194,8 +194,8 @@ export class ScheduleOrchestrator {
    * Start the daemon: run one immediate cycle, then schedule a cron job at
    * the configured poll interval. Returns immediately after scheduling.
    *
-   * The cron expression is derived from pollIntervalMs (30-min default →
-   * e.g. every 30 minutes).
+   * The cron expression is derived from pollIntervalMs (5-min default →
+   * e.g. every 5 minutes).
    */
   start(immediate = true): void {
     if (this.cronTask) {

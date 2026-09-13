@@ -114,7 +114,7 @@ All settings live in `config.yaml`:
 |-----|---------|-------------|
 | `teacherId` | — (required) | Identifier for the schedule to scrape |
 | `dateRange` | `7` | Number of days to look ahead |
-| `pollIntervalMs` | `1800000` | Daemon poll interval (30 min) |
+| `pollIntervalMs` | `300000` | Daemon poll interval (5 min) |
 | `quietHours.start` / `.end` | `22:00` / `06:00` | Quiet window (Bali time) |
 | `quietHours.tz` | `Asia/Makassar` | IANA timezone for quiet hours |
 | `whatsapp.provider` | `callmebot` | Delivery provider |

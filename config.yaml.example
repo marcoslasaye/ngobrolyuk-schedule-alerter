@@ -10,7 +10,7 @@ teacherId: "marcos"
 dateRange: 7                # number of days to look ahead (default 7)
 
 # Poll every 30 minutes by default
-pollIntervalMs: 1800000
+pollIntervalMs: 300000
 
 quietHours:
   start: "22:00"            # Bali time (UTC+8)

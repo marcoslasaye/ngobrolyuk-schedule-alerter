@@ -238,7 +238,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
 
     // A real alert was delivered exactly once.
     expect(deliveredText.length).toBe(1);
-    expect(deliveredText[0]).toContain("Schedule Change Alert");
+    expect(deliveredText[0]).toContain("🔔 Cambios en tu horario");
 
     // The alert payload handed to the queue has the expected shape.
     expect(capturedPayload).not.toBeNull();
@@ -255,10 +255,10 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     expect(capturedPayload!.dateRange.end).toBe("2026-09-09");
 
     // The formatted message renders through the real formatter without
-    // crashing and includes the affected student.
+    // crashing and points the user to /hoy for details.
     const formatted = formatAlert(capturedPayload!);
-    expect(formatted).toContain("Juan Pérez");
-    expect(formatted).toContain("Sep 3");
+    expect(formatted).toContain("🔔 Cambios en tu horario");
+    expect(formatted).toContain("/hoy");
 
     // DeliveryResult captured.
     expect(delivered).toHaveLength(1);

@@ -1,15 +1,18 @@
 /**
  * Notifier alert formatter — ChangeSummary[] → WhatsApp text.
  *
- * Produces a single human-readable WhatsApp message (summary only; the full
- * diff is never included, per the user's decision). Header + one line per
- * change. Includes student, date (e.g. "Sep 5") and time; never level/status.
+ * Produces a single simple alert: a header plus a "check your schedule"
+ * hint. The detailed diff is intentionally NOT included — the user wants
+ * a clean notification that points them to /hoy for the details.
  * An empty change list produces an empty string (caller sends nothing).
  */
 import type { AlertPayload, ChangeSummary } from "./types.js";
 
 /** Message header for every change alert. */
-export const ALERT_HEADER = "📅 Schedule Change Alert";
+export const ALERT_HEADER = "🔔 Cambios en tu horario";
+
+/** Hint appended so the user knows where to see the updated schedule. */
+export const ALERT_HINT = "Chequea tu horario con /hoy";
 
 /** Timezone note appended to every alert so class times are unambiguous. */
 export const TIMEZONE_NOTE = "🕐 Horarios en hora de Jakarta (WIB, UTC+7)";
@@ -64,8 +67,7 @@ export function formatAlert(payload: AlertPayload): string {
   if (payload.changes.length === 0) {
     return "";
   }
-  const lines = payload.changes.map(formatLine);
-  return [ALERT_HEADER, ...lines, "", TIMEZONE_NOTE].join("\n");
+  return [ALERT_HEADER, "", ALERT_HINT].join("\n");
 }
 
 /** FormatterPort interface — satisfies the design's notifier port contract. */

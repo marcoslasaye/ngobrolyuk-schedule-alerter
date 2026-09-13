@@ -1,12 +1,13 @@
 /**
  * Tests for the notifier alert formatter.
  *
- * Converts ChangeSummary[] / AlertPayload into a human-readable WhatsApp
- * message (summary only — never the full diff). Verifies the spec's message
- * shape: header + one line per change with student, date (Sep 5) and time.
+ * Converts ChangeSummary[] / AlertPayload into a simple alert message:
+ * header + "check your schedule" hint. The detailed diff is intentionally
+ * NOT included — the user wants a clean notification that points to /hoy.
+ * An empty change list produces an empty string (caller sends nothing).
  */
 import { describe, it, expect } from "vitest";
-import { formatAlert, TIMEZONE_NOTE, type FormatterPort } from "./formatter.js";
+import { formatAlert, ALERT_HEADER, ALERT_HINT, type FormatterPort } from "./formatter.js";
 import type { AlertPayload, ChangeSummary } from "./types.js";
 import type { ScheduleEntry } from "../fetcher/types.js";
 
@@ -45,26 +46,16 @@ describe("formatAlert", () => {
     expect(text).toBe("");
   });
 
-  it("formats a single added change with student, date, and time", () => {
+  it("renders the simple alert header and hint", () => {
     const text = formatAlert(
       payload([summary("added", entry(), "New class")]),
     );
-    expect(text).toContain("📅 Schedule Change Alert");
-    expect(text).toContain("➕ Added");
-    expect(text).toContain("Juan Pérez");
-    expect(text).toContain("Sep 5");
-    expect(text).toContain("10:00");
+    expect(text).toContain(ALERT_HEADER);
+    expect(text).toContain(ALERT_HINT);
+    expect(text).toContain("/hoy");
   });
 
-  it("appends the Jakarta timezone note to every alert", () => {
-    const text = formatAlert(
-      payload([summary("added", entry(), "New class")]),
-    );
-    expect(text).toContain(TIMEZONE_NOTE);
-    expect(text).toContain("Jakarta");
-  });
-
-  it("does not include level or status in the message", () => {
+  it("does not include the detailed diff (student, date, time)", () => {
     const text = formatAlert(
       payload([
         summary(
@@ -74,36 +65,34 @@ describe("formatAlert", () => {
         ),
       ]),
     );
+    expect(text).not.toContain("Juan Pérez");
+    expect(text).not.toContain("Sep");
+    expect(text).not.toContain("10:00");
     expect(text).not.toContain("Intermediate");
     expect(text).not.toContain("pending");
   });
 
-  it("batches multiple changes into a single message", () => {
-    const changes = [
-      summary("added", entry({ student: "Juan", time: "10:00" }), "New"),
-      summary(
-        "removed",
-        entry({ student: "Ana", date: "2026-09-07", time: "14:00" }),
-        "Cancel",
-      ),
-      summary(
-        "modified",
-        entry({ student: "Lucia", date: "2026-09-03", time: "09:00" }),
-        "Moved",
-      ),
-    ];
-    const text = formatAlert(payload(changes));
-    expect(text).toContain("➕ Added");
-    expect(text).toContain("Juan");
-    expect(text).toContain("➖ Removed");
-    expect(text).toContain("Ana");
-    expect(text).toContain("Sep 7");
-    expect(text).toContain("14:00");
-    expect(text).toContain("✏️ Modified");
-    expect(text).toContain("Lucia");
-    expect(text).toContain("Sep 3");
-    expect(text).toContain("09:00");
-    // One message header only.
-    expect(text.split("📅 Schedule Change Alert").length - 1).toBe(1);
+  it("renders the same simple message regardless of change count", () => {
+    const one = formatAlert(
+      payload([summary("added", entry(), "New")]),
+    );
+    const many = formatAlert(
+      payload([
+        summary("added", entry({ student: "Juan", time: "10:00" }), "New"),
+        summary(
+          "removed",
+          entry({ student: "Ana", date: "2026-09-07", time: "14:00" }),
+          "Cancel",
+        ),
+        summary(
+          "modified",
+          entry({ student: "Lucia", date: "2026-09-03", time: "09:00" }),
+          "Moved",
+        ),
+      ]),
+    );
+    expect(one).toBe(many);
+    // One header only.
+    expect(one.split(ALERT_HEADER).length - 1).toBe(1);
   });
 });
