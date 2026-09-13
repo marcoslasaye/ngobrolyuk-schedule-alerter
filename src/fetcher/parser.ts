@@ -5,15 +5,13 @@
  * endpoint. Empty or selector-mismatched HTML is treated as "no entries"
  * for the date: the function returns [] and logs a warning, never throws.
  *
- * Only returns classes where tutor === "Marcos Lopez".
+ * When `tutors` is provided (non-empty), only rows whose tutor matches one
+ * of the given names are returned; when omitted, ALL rows are returned.
  * Identity `hash` is SHA-256 of `tutor + student + language + date`.
  */
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import type { ScheduleEntry } from "./types.js";
-
-/** The exact tutor name we care about (as it appears in the HTML). */
-const TARGET_TUTOR = "Marcos Lopez";
 
 /**
  * Selector for a single schedule row/entry in the response HTML.
@@ -48,20 +46,36 @@ export function computeHash(tutor: string, student: string, language: string, da
  *
  * - No matching rows → returns [] (logs a warning; never throws).
  * - Empty / malformed HTML → returns [].
- * - Rows present → ONLY returns entries where tutor === "Marcos Lopez".
+ * - When `tutors` is provided (non-empty) → only rows whose tutor exactly
+ *   matches one of the given names (compared after trimming).
+ * - When `tutors` is omitted or empty → ALL rows are returned (no tutor filter).
  *
  * The `date` parameter is applied to every entry (YYYY-MM-DD); if omitted
  * the entry carries an empty date string.
  * Date is also extracted from the page's date picker (YYYY-MM-DD).
  */
-export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
+export function parseSchedule(
+  html: string,
+  date = "",
+  tutors?: string[],
+): ScheduleEntry[] {
   const $ = load(html);
   const rows = $(ENTRY_SELECTOR).toArray();
+
+  // Normalize the tutor filter: trimmed, deduplicated, or null when not requested.
+  const tutorFilter =
+    tutors && tutors.length > 0
+      ? new Set(
+          tutors
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0),
+        )
+      : null;
 
   // Extract date from the page's date picker if not provided
   let effectiveDate = date;
   if (!effectiveDate) {
-    const pickerVal = $('.fh-date-picker').val();
+    const pickerVal = $(".fh-date-picker").val();
     if (pickerVal) {
       effectiveDate = pickerVal as string;
     }
@@ -88,8 +102,8 @@ export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
     const language = ($row.find(FIELD_SELECTOR.language).text() ?? "").trim();
     const status = ($row.find(FIELD_SELECTOR.status).text() ?? "").trim();
 
-    // Filter: ONLY classes where tutor is "Marcos Lopez"
-    if (tutor !== TARGET_TUTOR) {
+    // When a tutor filter is active, skip rows that do not match.
+    if (tutorFilter && !tutorFilter.has(tutor)) {
       continue;
     }
 
@@ -101,11 +115,11 @@ export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
     // Level is not directly in HTML; infer from language or leave empty
     const level = "";
 
-    const hash = computeHash(TARGET_TUTOR, student, language, effectiveDate);
+    const hash = computeHash(tutor, student, language, effectiveDate);
     entries.push({
       date: effectiveDate,
       time,
-      tutor: TARGET_TUTOR,
+      tutor,
       student,
       level,
       language,
@@ -114,8 +128,10 @@ export function parseSchedule(html: string, date = ""): ScheduleEntry[] {
     });
   }
 
-  if (entries.length === 0 && rows.length > 0) {
-    console.info(`[fetcher] Found ${rows.length} total classes, but none for tutor "${TARGET_TUTOR}" on ${effectiveDate}`);
+  if (entries.length === 0 && rows.length > 0 && tutorFilter) {
+    console.info(
+      `[fetcher] Found ${rows.length} total classes, but none for the requested tutors on ${effectiveDate}`,
+    );
   }
 
   return entries;

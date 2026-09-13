@@ -50,7 +50,7 @@ export interface OrchestratorDeps {
   summary: {
     sendToday(): Promise<DeliveryResult>;
   };
-  /** Optional Telegram bot listener for interactive commands (e.g. /hoy). */
+  /** Optional Telegram bot listener for interactive commands (e.g. /today). */
   bot?: {
     start(): Promise<void>;
     stop(): Promise<void>;
@@ -226,7 +226,7 @@ export class ScheduleOrchestrator {
       this.log.info({ cron: dailyExpr, tz: daily.tz }, "orchestrator:daily summary scheduled");
     }
 
-    // Optional Telegram bot listener for interactive commands (e.g. /hoy).
+    // Optional Telegram bot listener for interactive commands (e.g. /today).
     if (this.deps.bot) {
       void this.deps.bot.start().then(() => {
         this.log.info("orchestrator:telegram bot started");

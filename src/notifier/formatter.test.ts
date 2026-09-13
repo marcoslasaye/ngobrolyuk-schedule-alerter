@@ -3,7 +3,7 @@
  *
  * Converts ChangeSummary[] / AlertPayload into a simple alert message:
  * header + "check your schedule" hint. The detailed diff is intentionally
- * NOT included — the user wants a clean notification that points to /hoy.
+ * NOT included — the user wants a clean notification that points to /today.
  * An empty change list produces an empty string (caller sends nothing).
  */
 import { describe, it, expect } from "vitest";
@@ -52,7 +52,10 @@ describe("formatAlert", () => {
     );
     expect(text).toContain(ALERT_HEADER);
     expect(text).toContain(ALERT_HINT);
-    expect(text).toContain("/hoy");
+    expect(text).toContain("/today");
+    // Header and hint in English.
+    expect(text).toContain("Schedule changes");
+    expect(text).toContain("Check your schedule with /today");
   });
 
   it("does not include the detailed diff (student, date, time)", () => {

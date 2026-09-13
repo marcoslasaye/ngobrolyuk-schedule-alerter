@@ -91,6 +91,14 @@ describe("parseArgs", () => {
     expect(parseArgs(["-h"]).command).toBe("help");
   });
 
+  it("parses the today command", () => {
+    expect(parseArgs(["today"]).command).toBe("today");
+  });
+
+  it("accepts the legacy horario-hoy alias as today", () => {
+    expect(parseArgs(["horario-hoy"]).command).toBe("today");
+  });
+
   it("defaults to start for unknown commands", () => {
     expect(parseArgs(["bogus"]).command).toBe("start");
   });
@@ -181,17 +189,17 @@ function entry(hash: string, time: string): ScheduleEntry {
 describe("formatScheduleDay", () => {
   it("derives a deterministic long date label and renders the entry body", () => {
     const text = formatScheduleDay([entry("h1", "10:00")], "2026-09-12");
-    expect(text).toContain("12 de septiembre de 2026");
+    expect(text).toContain("12 September 2026");
     expect(text).toContain("Student");
     expect(text).toContain("10:00");
     // Jakarta timezone note kept at the end.
-    expect(text).toContain("Jakarta (WIB, UTC+7)");
+    expect(text).toContain("Jakarta time (WIB, UTC+7)");
   });
 
   it("shows a no-classes message for an empty day", () => {
     const text = formatScheduleDay([], "2026-09-12");
-    expect(text).toContain("12 de septiembre de 2026");
-    expect(text).toContain("No hay clases programadas");
+    expect(text).toContain("12 September 2026");
+    expect(text).toContain("No classes scheduled");
   });
 });
 
@@ -202,10 +210,10 @@ describe("formatWeek", () => {
       ["2026-10-06", []],
     ]);
     const text = formatWeek(map);
-    expect(text).toContain("Horario de la semana");
+    expect(text).toContain("Weekly schedule");
     expect(text).toContain("09:00");
     expect(text).toContain("11:00");
-    expect(text).toContain("Sin clases");
+    expect(text).toContain("No classes");
     // The Jakarta timezone note appears exactly once.
     expect(text.match(/Jakarta/g)).toHaveLength(1);
   });
@@ -214,12 +222,12 @@ describe("formatWeek", () => {
 describe("labelForDate", () => {
   const now = new Date("2026-09-11T12:00:00Z");
 
-  it("labels today as 'hoy'", () => {
-    expect(labelForDate("2026-09-11", "Asia/Makassar", now)).toBe("hoy");
+  it("labels today as 'today'", () => {
+    expect(labelForDate("2026-09-11", "Asia/Makassar", now)).toBe("today");
   });
 
-  it("labels tomorrow as 'mañana'", () => {
-    expect(labelForDate("2026-09-12", "Asia/Makassar", now)).toBe("mañana");
+  it("labels tomorrow as 'tomorrow'", () => {
+    expect(labelForDate("2026-09-12", "Asia/Makassar", now)).toBe("tomorrow");
   });
 
   it("labels other dates with weekday and dd/MM", () => {

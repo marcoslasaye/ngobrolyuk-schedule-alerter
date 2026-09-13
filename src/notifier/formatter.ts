@@ -3,19 +3,19 @@
  *
  * Produces a single simple alert: a header plus a "check your schedule"
  * hint. The detailed diff is intentionally NOT included — the user wants
- * a clean notification that points them to /hoy for the details.
+ * a clean notification that points them to /today for the details.
  * An empty change list produces an empty string (caller sends nothing).
  */
 import type { AlertPayload, ChangeSummary } from "./types.js";
 
 /** Message header for every change alert. */
-export const ALERT_HEADER = "🔔 Cambios en tu horario";
+export const ALERT_HEADER = "🔔 Schedule changes";
 
 /** Hint appended so the user knows where to see the updated schedule. */
-export const ALERT_HINT = "Chequea tu horario con /hoy";
+export const ALERT_HINT = "Check your schedule with /today";
 
 /** Timezone note appended to every alert so class times are unambiguous. */
-export const TIMEZONE_NOTE = "🕐 Horarios en hora de Jakarta (WIB, UTC+7)";
+export const TIMEZONE_NOTE = "🕐 Times shown in Jakarta time (WIB, UTC+7)";
 
 /** Emoji/label per change type, matching the spec's message shape. */
 const CHANGE_LABEL: Record<ChangeSummary["type"], string> = {

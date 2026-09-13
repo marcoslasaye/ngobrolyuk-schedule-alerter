@@ -2,11 +2,12 @@
  * Tests for the fetcher parser (Cheerio HTML → ScheduleEntry[]).
  *
  * Uses the recorded fixtures in __fixtures__/fetcher/:
- *  - schedule-single-day.html  → 3 entries
+ *  - schedule-single-day.html  → 3 entries (all Marcos Lopez)
  *  - schedule-empty.html       → 0 entries (no error)
  *  - schedule-malformed.html   → 0 entries (selector mismatch, no error)
  *
- * Also verifies the identity hash (SHA-256 of student+language+date).
+ * Also verifies the identity hash (SHA-256 of tutor+student+language+date)
+ * and the optional tutor filter behaviour.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -14,6 +15,8 @@ import { join } from "node:path";
 import { parseSchedule, computeHash } from "./parser.js";
 
 const FIXTURES = join(process.cwd(), "__fixtures__", "fetcher");
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 describe("computeHash", () => {
   it("is deterministic for identical inputs", () => {
@@ -34,10 +37,15 @@ describe("computeHash", () => {
   });
 });
 
+// ── parseSchedule ────────────────────────────────────────────────────────────
+
 describe("parseSchedule", () => {
-  it("parses 3 entries from the single-day fixture (only Marcos Lopez)", () => {
-    const html = readFileSync(join(FIXTURES, "schedule-single-day.html"), "utf8");
-    const entries = parseSchedule(html, "2026-09-03");
+  it("parses 3 entries from the single-day fixture for tutor 'Marcos Lopez'", () => {
+    const html = readFileSync(
+      join(FIXTURES, "schedule-single-day.html"),
+      "utf8",
+    );
+    const entries = parseSchedule(html, "2026-09-03", ["Marcos Lopez"]);
     expect(entries).toHaveLength(3);
     expect(entries[0]).toMatchObject({
       date: "2026-09-03",
@@ -55,20 +63,34 @@ describe("parseSchedule", () => {
   });
 
   it("computes a stable hash for each parsed entry (tutor+student+language+date)", () => {
-    const html = readFileSync(join(FIXTURES, "schedule-single-day.html"), "utf8");
-    const entries = parseSchedule(html, "2026-09-03");
-    const expected = computeHash("Marcos Lopez", "Juan Pérez", "English", "2026-09-03");
+    const html = readFileSync(
+      join(FIXTURES, "schedule-single-day.html"),
+      "utf8",
+    );
+    const entries = parseSchedule(html, "2026-09-03", ["Marcos Lopez"]);
+    const expected = computeHash(
+      "Marcos Lopez",
+      "Juan Pérez",
+      "English",
+      "2026-09-03",
+    );
     expect(entries[0].hash).toBe(expected);
   });
 
   it("returns an empty array for the empty fixture (no error)", () => {
-    const html = readFileSync(join(FIXTURES, "schedule-empty.html"), "utf8");
+    const html = readFileSync(
+      join(FIXTURES, "schedule-empty.html"),
+      "utf8",
+    );
     expect(() => parseSchedule(html, "2026-09-03")).not.toThrow();
     expect(parseSchedule(html, "2026-09-03")).toEqual([]);
   });
 
   it("returns an empty array for malformed HTML without throwing", () => {
-    const html = readFileSync(join(FIXTURES, "schedule-malformed.html"), "utf8");
+    const html = readFileSync(
+      join(FIXTURES, "schedule-malformed.html"),
+      "utf8",
+    );
     expect(() => parseSchedule(html, "2026-09-03")).not.toThrow();
     expect(parseSchedule(html, "2026-09-03")).toEqual([]);
   });
@@ -78,8 +100,11 @@ describe("parseSchedule", () => {
   });
 
   it("applies the given date to every entry", () => {
-    const html = readFileSync(join(FIXTURES, "schedule-single-day.html"), "utf8");
-    const entries = parseSchedule(html, "2026-09-05");
+    const html = readFileSync(
+      join(FIXTURES, "schedule-single-day.html"),
+      "utf8",
+    );
+    const entries = parseSchedule(html, "2026-09-05", ["Marcos Lopez"]);
     expect(entries.every((e) => e.date === "2026-09-05")).toBe(true);
   });
 
@@ -122,8 +147,96 @@ describe("parseSchedule", () => {
         </div>
       </div>
     `;
-    const entries = parseSchedule(html, "2026-09-03");
+    const entries = parseSchedule(html, "2026-09-03", ["Marcos Lopez"]);
     expect(entries).toHaveLength(1);
     expect(entries[0].student).toBe("Ana Torres");
+  });
+});
+
+// ── tutor filter behaviour ───────────────────────────────────────────────────
+
+/** Two rows from two different tutors — used to exercise the tutor filter. */
+const TWO_TUTORS_HTML = `
+  <div class="fh-table-wrap" id="fh-schedule-list">
+    <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+      <div class="fh-cell-waktu" role="cell">
+        <span class="fh-cell-time">09:00 – 10:00</span>
+      </div>
+      <div class="fh-cell-siswa" role="cell">Juan Pérez</div>
+      <div class="fh-cell-tutor" role="cell">
+        <a href="https://ngobrolyuk.com/tutor/marcos-lopez/" class="fh-tutor-pill" title="Marcos Lopez">
+          <span class="fh-tutor-pill-name">Marcos Lopez</span>
+        </a>
+      </div>
+      <div class="fh-cell-bahasa-wrap" role="cell">
+        <span class="fh-lang-badge fh-lang-english">English</span>
+      </div>
+      <div class="fh-cell-status-wrap" role="cell">
+        <span class="fh-status-badge fh-badge-confirmed">Selesai</span>
+      </div>
+    </div>
+    <div class="fh-table-row fh-item" data-status="confirmed" role="row">
+      <div class="fh-cell-waktu" role="cell">
+        <span class="fh-cell-time">11:00 – 12:00</span>
+      </div>
+      <div class="fh-cell-siswa" role="cell">Ana Torres</div>
+      <div class="fh-cell-tutor" role="cell">
+        <a href="https://ngobrolyuk.com/tutor/salma-rizky/" class="fh-tutor-pill" title="Salma Rizky">
+          <span class="fh-tutor-pill-name">Salma Rizky</span>
+        </a>
+      </div>
+      <div class="fh-cell-bahasa-wrap" role="cell">
+        <span class="fh-lang-badge fh-lang-mandarin">Mandarin</span>
+      </div>
+      <div class="fh-cell-status-wrap" role="cell">
+        <span class="fh-status-badge fh-badge-confirmed">Selesai</span>
+      </div>
+    </div>
+  </div>
+`;
+
+describe("tutor filter", () => {
+  it("returns ALL rows when no tutors filter is given", () => {
+    const entries = parseSchedule(TWO_TUTORS_HTML, "2026-09-03");
+    expect(entries).toHaveLength(2);
+    expect(entries.every((e) => e.date === "2026-09-03")).toBe(true);
+  });
+
+  it("filters to the requested tutor only", () => {
+    const marcos = parseSchedule(
+      TWO_TUTORS_HTML,
+      "2026-09-03",
+      ["Marcos Lopez"],
+    );
+    expect(marcos).toHaveLength(1);
+    expect(marcos[0].student).toBe("Juan Pérez");
+    expect(marcos[0].tutor).toBe("Marcos Lopez");
+
+    const salma = parseSchedule(
+      TWO_TUTORS_HTML,
+      "2026-09-03",
+      ["Salma Rizky"],
+    );
+    expect(salma).toHaveLength(1);
+    expect(salma[0].student).toBe("Ana Torres");
+  });
+
+  it("trims whitespace around the requested tutor names", () => {
+    const entries = parseSchedule(
+      TWO_TUTORS_HTML,
+      "2026-09-03",
+      ["  Marcos Lopez "],
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].tutor).toBe("Marcos Lopez");
+  });
+
+  it("returns [] when the requested tutor is not present", () => {
+    const entries = parseSchedule(
+      TWO_TUTORS_HTML,
+      "2026-09-03",
+      ["Other Teacher"],
+    );
+    expect(entries).toHaveLength(0);
   });
 });

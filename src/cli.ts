@@ -17,7 +17,8 @@
  */
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { formatInTimeZone } from "date-fns-tz";
 import { loadConfigFile } from "./config/loader.js";
 import type { ConfigSchema } from "./config/schema.js";
@@ -30,6 +31,7 @@ import { ScheduleBot, addDays } from "./notifier/bot.js";
 import { sendFallback } from "./notifier/fallback.js";
 import { AlertQueue } from "./notifier/queue.js";
 import type { DeliveryResult } from "./notifier/types.js";
+import { UserStore } from "./registry/userStore.js";
 import { loadCache, saveCache } from "./scheduler/cache.js";
 import {
   ScheduleOrchestrator,
@@ -43,7 +45,7 @@ export type CommandName =
   | "run-once"
   | "test-config"
   | "test-notifier"
-  | "horario-hoy"
+  | "today"
   | "help"
   | "version"
   | "unknown";
@@ -78,6 +80,13 @@ export interface CliServices {
   /** Version string to report. */
   version: string;
 }
+
+/**
+ * Legacy single-teacher name kept for the CLI / alert-pipeline paths
+ * (run-once, daemon poll, daily summary, today). Those paths still
+ * target one teacher; slice 4 will make them per registered user.
+ */
+const LEGACY_TUTOR = "Marcos Lopez";
 
 /**
  * Parse raw argv into a ParsedArgs. Defaults to `start` when no command is
@@ -123,7 +132,14 @@ export function parseArgs(argv: string[]): ParsedArgs {
         case "run-once":
         case "test-config":
         case "test-notifier":
-        case "horario-hoy":
+          args.command = arg;
+          commandFound = true;
+          break;
+        case "today":
+        case "horario-hoy": // Legacy alias for "today".
+          args.command = "today";
+          commandFound = true;
+          break;
         case "help":
         case "version":
           args.command = arg;
@@ -153,12 +169,12 @@ function printUsage(): void {
   console.log("  run-once       Fetch once, diff, and alert (for GitHub Actions / manual)");
   console.log("  test-config    Validate config.yaml and exit");
   console.log("  test-notifier  Probe the WhatsApp/fallback delivery channel");
-  console.log("  horario-hoy    Show today's classes for Marcos Lopez");
+  console.log("  today          Show today's classes for Marcos Lopez (alias: horario-hoy)");
   console.log("");
-  console.log("Options (for horario-hoy):");
+  console.log("Options (for today):");
   console.log("  --html              Generate HTML file");
   console.log("  --telegram          Send to Telegram");
-  console.log("  --output <path>     Output path for HTML (default: horario-hoy.html)");
+  console.log("  --output <path>     Output path for HTML (default: today.html)");
   console.log("");
   console.log("  help, -h, --help     Show this help");
   console.log("  version, -V          Show the version");
@@ -220,13 +236,13 @@ export async function dispatch(
         return 1;
       }
     }
-    case "horario-hoy": {
+    case "today": {
       try {
         const entries = await services.fetchTodaySchedule();
         
         // Handle --html flag
         if (args.html) {
-          const outputPath = args.output || "horario-hoy.html";
+          const outputPath = args.output || "today.html";
           await services.generateScheduleHtml(entries, outputPath);
           console.log(`📄 HTML generated: ${outputPath}`);
         }
@@ -245,10 +261,10 @@ export async function dispatch(
         // Default: just print to console
         if (!args.html && !args.telegram) {
           if (entries.length === 0) {
-            console.log("📅 Hoy no hay clases para Marcos Lopez.");
+            console.log(`📅 No classes for ${LEGACY_TUTOR} today.`);
             return 0;
           }
-          console.log(`📅 Horario de hoy para Marcos Lopez (${entries.length} clase${entries.length > 1 ? "s" : ""}):`);
+          console.log(`📅 Today's schedule for ${LEGACY_TUTOR} (${entries.length} classes):`);
           console.log("");
           entries.forEach((e, i) => {
             const time = e.time;
@@ -260,7 +276,7 @@ export async function dispatch(
         }
         return 0;
       } catch (err) {
-        console.error(`horario-hoy failed: ${String(err)}`);
+        console.error(`today command failed: ${String(err)}`);
         return 1;
       }
     }
@@ -324,13 +340,13 @@ export function buildServices(version: string): CliServices {
       const raw = await fetchSchedule(today, {
         baseUrl: resolveBaseUrl(config),
       });
-      return parseSchedule(raw.html, today);
+      return parseSchedule(raw.html, today, [LEGACY_TUTOR]);
     },
 
     async generateScheduleHtml(entries: ScheduleEntry[], outputPath?: string): Promise<void> {
       const html = generateScheduleHtml(entries);
       const { writeFileSync } = await import("node:fs");
-      writeFileSync(outputPath || "horario-hoy.html", html);
+      writeFileSync(outputPath || "today.html", html);
     },
 
     async sendScheduleToTelegram(entries: ScheduleEntry[]): Promise<DeliveryResult> {
@@ -347,13 +363,13 @@ export function buildServices(version: string): CliServices {
  * given config. All ports are composed here in one place.
  */
 function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
-  // FetcherPort: HTTP fetch + HTML parse for one date.
+  // FetcherPort: HTTP fetch + HTML parse for one date (legacy single tutor).
   const fetcher = {
     async fetch(date: string): Promise<ScheduleEntry[]> {
       const raw = await fetchSchedule(date, {
         baseUrl: resolveBaseUrl(config),
       });
-      return parseSchedule(raw.html, date);
+      return parseSchedule(raw.html, date, [LEGACY_TUTOR]);
     },
   };
 
@@ -387,6 +403,13 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
     },
   };
 
+  // User registry for the interactive bot: chatId → tutor name
+  // (persists to ~/.schedule-alerter/users.json).
+  const userStore = new UserStore(
+    join(homedir(), ".schedule-alerter", "users.json"),
+  );
+  void userStore.load(); // kick off the initial read eagerly
+
   const deps: OrchestratorDeps = {
     fetcher,
     differ,
@@ -398,25 +421,41 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
         const raw = await fetchSchedule(today, {
           baseUrl: resolveBaseUrl(config),
         });
-        const entries = parseSchedule(raw.html, today);
+        const entries = parseSchedule(raw.html, today, [LEGACY_TUTOR]);
         const text = formatScheduleDay(entries, today);
         return sendFallback(text, config.fallback);
       },
     },
-    // Interactive Telegram commands (/hoy, /manana, /semana) — only
-    // when the fallback channel is Telegram and a bot token is configured.
+    // Interactive Telegram commands (/today, /tomorrow, /week, /register) —
+    // only when the fallback channel is Telegram and a bot token is configured.
     bot: config.fallback.type === "telegram" && config.fallback.config.botToken
       ? new ScheduleBot(String(config.fallback.config.botToken), {
           tz: config.dailySummary.tz,
-          fetchByDate: async (date) => {
+          fetchByDate: async (date, tutorName) => {
             const raw = await fetchSchedule(date, {
               baseUrl: resolveBaseUrl(config),
             });
-            return parseSchedule(raw.html, date);
+            return parseSchedule(
+              raw.html,
+              date,
+              tutorName ? [tutorName] : undefined,
+            );
           },
           formatDay: formatScheduleDay,
           formatWeek,
           labelFor: (date) => labelForDate(date, config.dailySummary.tz),
+          findUser: async (chatId) => {
+            const u = await userStore.findByChatId(chatId);
+            return u ? { tutorName: u.tutorName, tz: u.tz } : undefined;
+          },
+          registerUser: async (chatId, tutorName) => {
+            await userStore.upsert({
+              chatId,
+              tutorName,
+              tz: "Asia/Makassar",
+              registeredAt: new Date().toISOString(),
+            });
+          },
         })
       : undefined,
     config,
@@ -434,7 +473,7 @@ function resolveBaseUrl(config: ConfigSchema): string {
  * Generate a beautiful HTML schedule page.
  */
 function generateScheduleHtml(entries: ScheduleEntry[]): string {
-  const today = new Date().toLocaleDateString("es-ES", {
+  const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -456,11 +495,11 @@ function generateScheduleHtml(entries: ScheduleEntry[]): string {
   `).join("");
 
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Horario de ${today} - Marcos Lopez</title>
+  <title>Schedule for ${today} - Marcos Lopez</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -618,16 +657,16 @@ function generateScheduleHtml(entries: ScheduleEntry[]): string {
 <body>
   <div class="container">
     <header>
-      <h1>📅 Horario de Hoy</h1>
+      <h1>📅 Today's Schedule</h1>
       <div class="date">Marcos Lopez · ${today}</div>
-      <div class="count">${entries.length} clase${entries.length !== 1 ? "s" : ""}</div>
+      <div class="count">${entries.length} class${entries.length !== 1 ? "s" : ""}</div>
     </header>
     ${entries.length === 0
-      ? `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7V3M12 7V3M16 7V3M10 10H14M8 14H16M8 18H16"/></svg><p>Hoy no hay clases programadas</p></div>`
+      ? `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 7V3M12 7V3M16 7V3M10 10H14M8 14H16M8 18H16"/></svg><p>No classes scheduled today</p></div>`
       : `<div class="schedule">${cards}</div>`
     }
     <footer>
-      <p>Generado automáticamente · Ngobrol Yuk Schedule</p>
+      <p>Generated automatically · Ngobrol Yuk Schedule</p>
     </footer>
   </div>
 </body>
@@ -635,14 +674,14 @@ function generateScheduleHtml(entries: ScheduleEntry[]): string {
 }
 
 /**
- * Long Spanish label for a YYYY-MM-DD date, e.g. "sábado, 12 de septiembre de 2026".
+ * Long English label for a YYYY-MM-DD date, e.g. "Saturday, 12 September 2026".
  * Deterministic: the date is parsed at noon UTC so the calendar day never
  * shifts across timezone boundaries.
  */
 function longDateLabel(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day, 12));
-  return parsed.toLocaleDateString("es-ES", {
+  return parsed.toLocaleDateString("en-GB", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -652,8 +691,8 @@ function longDateLabel(date: string): string {
 }
 
 /**
- * Human label for a date vs today (in `tz`): "hoy", "mañana", or a
- * weekday + dd/MM label (e.g. "jueves, 12/09"). Pure: `now` is
+ * Human label for a date vs today (in `tz`): "today", "tomorrow", or a
+ * weekday + dd/MM label (e.g. "Thursday, 12/09"). Pure: `now` is
  * injectable so tests are deterministic.
  */
 export function labelForDate(
@@ -663,14 +702,14 @@ export function labelForDate(
 ): string {
   const today = formatInTimeZone(now, tz, "yyyy-MM-dd");
   if (date === today) {
-    return "hoy";
+    return "today";
   }
   if (date === addDays(today, 1)) {
-    return "mañana";
+    return "tomorrow";
   }
   const [year, month, day] = date.split("-").map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day, 12));
-  return parsed.toLocaleDateString("es-ES", {
+  return parsed.toLocaleDateString("en-GB", {
     weekday: "long",
     month: "2-digit",
     day: "2-digit",
@@ -699,20 +738,22 @@ function renderEntry(entry: ScheduleEntry, index: number): string {
 /**
  * Format a single day's schedule for the Telegram message (HTML).
  * The header label derives deterministically from the given date, and the
- * "hoy"/"mañana" scope is resolved against today in the owner timezone.
+ * "today"/"tomorrow" scope is resolved against today in the owner timezone.
  */
 export function formatScheduleDay(entries: ScheduleEntry[], date: string): string {
   const scope = labelForDate(date, "Asia/Makassar");
-  const headerScope = scope === "hoy" ? "de hoy" : scope === "mañana" ? "de mañana" : scope;
-  const header = `📅 <b>Horario ${headerScope} (${longDateLabel(date)})</b>`;
+  const headerScope =
+    scope === "today" ? "Today's schedule" : scope === "tomorrow" ? "Tomorrow's schedule" : scope;
+  const header = `📅 <b>${headerScope} (${longDateLabel(date)})</b>`;
 
   if (entries.length === 0) {
-    return `${header}\n\n😴 No hay clases programadas para hoy.\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)`;
+    return `${header}\n\n😴 No classes scheduled.\n\n🕐 Times shown in Jakarta time (WIB, UTC+7)`;
   }
 
   let text = `${header}\n`;
-  text += `👨‍🏫 <b>Marcos Lopez</b> · ${entries.length} clase${entries.length !== 1 ? "s" : ""}\n`;
-  text += `🕐 Horarios en hora de Jakarta (WIB, UTC+7)\n\n`;
+  const teacher = entries[0]?.tutor ?? "";
+  text += `👨‍🏫 <b>${escapeHtml(teacher)}</b> · ${entries.length} class${entries.length !== 1 ? "s" : ""}\n`;
+  text += `🕐 Times shown in Jakarta time (WIB, UTC+7)\n\n`;
 
   text += entries.map(renderEntry).join("\n\n");
   text += "\n\n<i>Ngobrol Yuk Schedule</i>";
@@ -722,20 +763,20 @@ export function formatScheduleDay(entries: ScheduleEntry[], date: string): strin
 /**
  * Format multiple days' schedules (keyed by YYYY-MM-DD) as one weekly
  * Telegram message (HTML). Each day is a labeled section; days with no
- * entries show "Sin clases". The Jakarta timezone note appears once.
+ * entries show "No classes". The Jakarta timezone note appears once.
  */
 export function formatWeek(entriesByDate: ReadonlyMap<string, ScheduleEntry[]>): string {
   const sections = [...entriesByDate.entries()].map(([date, entries]) => {
     const label = labelForDate(date, "Asia/Makassar");
     const body = entries.length === 0
-      ? "😴 Sin clases"
+      ? "😴 No classes"
       : entries.map(renderEntry).join("\n\n");
     return `<b>${label}</b>\n${body}`;
   });
 
-  let text = `📅 <b>Horario de la semana</b>\n\n`;
+  let text = `📅 <b>Weekly schedule</b>\n\n`;
   text += sections.join("\n\n");
-  text += `\n\n🕐 Horarios en hora de Jakarta (WIB, UTC+7)\n`;
+  text += `\n\n🕐 Times shown in Jakarta time (WIB, UTC+7)\n`;
   text += `\n<i>Ngobrol Yuk Schedule</i>`;
   return text;
 }
