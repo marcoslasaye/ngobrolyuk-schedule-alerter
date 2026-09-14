@@ -2,11 +2,22 @@
  * Scheduler orchestrator — main poll cycle.
  *
  * For each of the next N dates (config.dateRange, default 7):
- *   fetch → parse → diff against cache → if changes → queue alert.
+ *   fetch → parse → diff against cache → if changes → route per-user alerts.
  *
  * Error isolation is per-date: a failure on one date is logged and skipped
  * without stopping the loop. De-duplicates entries across all dates into a
  * single AlertPayload. On first run (empty cache) the alert is suppressed.
+ *
+ * Phase 4 — per-user change alerts: after the diff, each registered bot
+ * user receives their OWN alert (on their OWN chat_id) but ONLY when a
+ * change affects a class dated TODAY or TOMORROW (in the user's timezone)
+ * for the tutor they registered with. Changes on day+2 … or for other
+ * tutors are logged only, never sent. With no registered users the cycle
+ * logs and skips — there is no legacy broadcast fallback (a missing users
+ * port logs a warning instead).
+ *
+ * Logs are PII-free: per-cycle dispatch log reports aggregate counts only
+ * (`recipients`, `alerts`), never chat ids or tutor names.
  *
  * Supports two modes:
  *   - `pollOnce()`  : single cycle (run-once / GitHub Actions)
@@ -18,10 +29,17 @@ import pino from "pino";
 import type { ScheduleEntry } from "../fetcher/types.js";
 import type { DiffResult } from "../differ/engine.js";
 import type { ChangeSummary, AlertPayload, DeliveryResult } from "../notifier/types.js";
+import { addDays as addDaysStr, todayDate, DEFAULT_USER_TZ } from "../notifier/bot.js";
+import type { UserRecord } from "../registry/userStore.js";
 import type { CacheSchema, PollResult } from "./types.js";
 
 /** ISO date string formatter (YYYY-MM-DD) used for poll dates. */
 const ISO_DATE = "yyyy-MM-dd";
+
+/** Normalize a tutor name for comparison (trim + case-insensitive). */
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
 
 /** Dependency container wired by the caller (test or CLI). */
 export interface OrchestratorDeps {
@@ -33,13 +51,18 @@ export interface OrchestratorDeps {
   differ: {
     diff(old: ScheduleEntry[], current: ScheduleEntry[]): DiffResult;
   };
-  /** NotifierPort: quiet-hours gate + delivery queue. */
+  /** NotifierPort: quiet-hours gate + delivery queue (per-user recipients). */
   queue: {
     process(payload: AlertPayload, now?: Date): Promise<void>;
     flush(now?: Date): Promise<void>;
     isQuiet(date: Date): boolean;
     queuedCount: number;
     consecutiveFailures: number;
+  };
+  /** UserRegistryPort: registered bot users for per-user alert routing. */
+  users?: {
+    /** All registered users (chatId → tutorName + tz). Empty = no alerts. */
+    all(): Promise<UserRecord[]>;
   };
   /** CachePort: load/save persisted schedule state. */
   cache: {
@@ -118,7 +141,8 @@ export class ScheduleOrchestrator {
    *  3. For each date: fetch → parse (wrap in try/catch per date).
    *  4. Concatenate all successfully parsed entries.
    *  5. Diff combined current vs cached.
-   *  6. If not first run and changes exist → queue alert.
+   *  6. If not first run and changes exist → route per-user alerts
+   *     (TODAY/TOMORROW scope + tutor match, one alert per user chat).
    *  7. Save the combined entries back to cache.
    */
   async pollOnce(now: Date = new Date()): Promise<CycleResult> {
@@ -152,20 +176,19 @@ export class ScheduleOrchestrator {
     const diffResult = this.deps.differ.diff(cached.entries, currentEntries);
     const firstRun = diffResult.firstRun || cached.entries.length === 0;
 
-    // Build AlertPayload (skip on first run to suppress initial noise).
+    // Build per-user alerts (skip on first run to suppress initial noise).
     // Always call queue.process() so wake-flush runs every cycle (even with no new changes).
     const changes = this.buildChangeSummaries(diffResult);
-    if (!firstRun) {
-      this.log.info({ changes: changes.length }, "poll:changes detected; queueing alert");
-      await this.deps.queue.process({
-        changes,
-        timestamp: startedAt,
-        dateRange: { start: dates[0], end: dates[dates.length - 1] },
-      }, now);
-    } else {
+    if (firstRun) {
       this.log.info("poll:first run (empty cache); alert suppressed");
       // Still flush any pending queue on first run (should be empty, but safe).
       await this.deps.queue.process({ changes: [], timestamp: startedAt, dateRange: { start: dates[0], end: dates[dates.length - 1] } }, now);
+    } else if (changes.length === 0) {
+      // No changes this cycle — nothing to route, but keep the flush cycle alive.
+      await this.deps.queue.process({ changes: [], timestamp: startedAt, dateRange: { start: dates[0], end: dates[dates.length - 1] } }, now);
+    } else {
+      this.log.info({ changes: changes.length }, "poll:changes detected; routing per-user alerts");
+      await this.dispatchPerUserAlerts(changes, startedAt, dates, now);
     }
 
     // Persist the current combined state.
@@ -275,7 +298,81 @@ export class ScheduleOrchestrator {
     }
   }
 
-  /** Convert a DiffResult into an array of ChangeSummary for alerting. */
+  /**
+   * Route detected changes to the registered users, one combined alert per
+   * user on their own chat_id.
+   *
+   * A user is alerted only for changes whose class date is TODAY or
+   * TOMORROW in the USER's timezone (same resolution as the /today and
+   * /tomorrow commands) AND whose tutor matches the user's registered
+   * tutor (case-insensitive). A user missing/invalid tz defaults to
+   * `DEFAULT_USER_TZ` (same default as the /today command) instead of
+   * throwing. Everything else (day+2 …, other tutors, unregistered tutors)
+   * is logged only. With no registered users the cycle logs and skips —
+   * no legacy broadcast fallback; a missing users port logs a warning.
+   *
+   * Logs are PII-free: only aggregate counts (`recipients`, `alerts`) are
+   * reported per cycle — never chat ids or tutor names.
+   */
+  private async dispatchPerUserAlerts(
+    changes: ChangeSummary[],
+    startedAt: string,
+    dates: string[],
+    now: Date,
+  ): Promise<void> {
+    const users = this.deps.users ? await this.deps.users.all() : [];
+    if (users.length === 0) {
+      if (this.deps.users) {
+        this.log.info("poll:no registered users; skipping alerts (changes logged only)");
+      } else {
+        this.log.warn("orchestrator:per-user alerting disabled (users port not wired)");
+      }
+      // Keep the wake-flush convention alive (empty payload is a no-op on delivery).
+      await this.deps.queue.process(
+        { changes: [], timestamp: startedAt, dateRange: { start: dates[0], end: dates[dates.length - 1] } },
+        now,
+      );
+      return;
+    }
+
+    // Aggregate counters — the only per-cycle dispatch log (PII-free).
+    let recipients = 0;
+    let alerts = 0;
+    for (const user of users) {
+      const tz = user.tz?.trim() || DEFAULT_USER_TZ;
+      const today = todayDate(tz, now);
+      const tomorrow = addDaysStr(today, 1);
+      const scope = new Set([today, tomorrow]);
+      const mine = changes.filter(
+        (c) =>
+          scope.has(c.class.date) &&
+          normalizeName(c.class.tutor) === normalizeName(user.tutorName),
+      );
+      if (mine.length === 0) {
+        continue;
+      }
+      recipients += 1;
+      alerts += mine.length;
+      await this.deps.queue.process(
+        {
+          changes: mine,
+          timestamp: startedAt,
+          dateRange: { start: dates[0], end: dates[dates.length - 1] },
+          recipientChatId: user.chatId,
+        },
+        now,
+      );
+    }
+    if (recipients > 0) {
+      this.log.info({ recipients, alerts }, "poll:per-user alerts queued");
+    }
+  }
+
+  /**
+   * Convert a DiffResult into an array of ChangeSummary for alerting.
+   * Every summary's `class` carries the original entry, so `date` and
+   * `tutor` flow through from the differ for per-user routing.
+   */
   private buildChangeSummaries(diff: DiffResult): ChangeSummary[] {
     const summaries: ChangeSummary[] = [];
     for (const e of diff.diff.added) {

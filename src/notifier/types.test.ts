@@ -21,6 +21,22 @@ describe("Notifier types", () => {
     expect(payload.dateRange.end).toBe("2026-09-09");
   });
 
+  it("AlertPayload supports an optional recipientChatId for per-user alerts", async () => {
+    const payload = {
+      changes: [],
+      timestamp: "2026-09-03T10:00:00.000Z",
+      dateRange: { start: "2026-09-03", end: "2026-09-09" },
+      recipientChatId: "chat-42",
+    };
+    expect(payload.recipientChatId).toBe("chat-42");
+    // Absent on the legacy single-recipient path.
+    expect({
+      changes: [],
+      timestamp: "",
+      dateRange: { start: "", end: "" },
+    }.recipientChatId).toBeUndefined();
+  });
+
   it("ChangeSummary has type, class, and detail", async () => {
     const summary = {
       type: "added" as const,

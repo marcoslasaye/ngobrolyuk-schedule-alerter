@@ -47,7 +47,7 @@ export {
   type WhatsAppConfig,
   type WhatsAppPort,
 } from "./notifier/whatsapp.js";
-export { sendFallback, type FallbackConfig } from "./notifier/fallback.js";
+export { sendFallback, sendFallbackToChat, type FallbackConfig } from "./notifier/fallback.js";
 export { AlertQueue, type QuietHoursConfig, type QueueOptions } from "./notifier/queue.js";
 
 // ---------------------------------------------------------------------------

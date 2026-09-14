@@ -6,6 +6,10 @@
  * Email sends a plain-text message via SMTP. Telegram posts to a chat via
  * the Bot API. `none` appends to a local log file. Always returns a
  * DeliveryResult; never throws.
+ *
+ * Phase 4 — per-user alerts are delivered through `sendTelegramToChat`
+ * (explicit chat_id) or `sendFallbackToChat` (configured channel with an
+ * overriding recipient chat_id for Telegram).
  */
 import nodemailer from "nodemailer";
 import { Telegraf } from "telegraf";
@@ -63,6 +67,19 @@ async function sendTelegram(
   const botToken = String(config.botToken);
   const chatId = String(config.chatId);
 
+  return sendTelegramToChat(text, botToken, chatId);
+}
+
+/**
+ * Deliver a message to a specific Telegram chat via the Bot API.
+ * The typed port used by per-user change alerts (Phase 4): each registered
+ * user receives their alert on their own chat_id.
+ */
+export async function sendTelegramToChat(
+  text: string,
+  botToken: string,
+  chatId: string,
+): Promise<DeliveryResult> {
   const bot = new Telegraf(botToken);
   try {
     await bot.telegram.sendMessage(chatId, text);
@@ -103,6 +120,29 @@ export async function sendFallback(
       return sendTelegram(text, fc.config);
     case "none":
       return sendFileLog(text, fc.config);
+    default:
+      return { success: false, channel: "unknown", error: `Unknown fallback type: ${String(fc.type)}` };
+  }
+}
+
+/**
+ * Dispatch an alert addressed to a specific user's telegram chat_id through
+ * the configured channel. For the telegram channel the recipient chat_id
+ * overrides the config default (per-user alerts, Phase 4); email/file
+ * channels ignore the chat_id (they are not per-chat by design).
+ * Returns a DeliveryResult; never throws.
+ */
+export async function sendFallbackToChat(
+  text: string,
+  fc: FallbackConfig,
+  chatId: string,
+): Promise<DeliveryResult> {
+  switch (fc.type) {
+    case "telegram":
+      return sendTelegramToChat(text, String(fc.config.botToken), chatId);
+    case "email":
+    case "none":
+      return sendFallback(text, fc);
     default:
       return { success: false, channel: "unknown", error: `Unknown fallback type: ${String(fc.type)}` };
   }

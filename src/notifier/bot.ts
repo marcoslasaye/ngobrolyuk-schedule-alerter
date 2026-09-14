@@ -17,6 +17,13 @@ import type { ScheduleEntry } from "../fetcher/types.js";
 /** Number of days covered by the /week command. */
 export const WEEK_DAYS = 7;
 
+/**
+ * Default timezone applied when a user record has no/invalid tz. The
+ * schedule is Jakarta time (WIB, UTC+7), so per-user date resolution
+ * (alerts and /today commands) falls back to it consistently.
+ */
+export const DEFAULT_USER_TZ = "Asia/Jakarta";
+
 /** Dependencies injected by the caller (CLI wiring). */
 export interface ScheduleBotDeps {
   /** Owner timezone used to resolve "today" (IANA name, e.g. "Asia/Makassar"). */
@@ -138,7 +145,8 @@ export class ScheduleBot {
           await ctx.reply(buildNotRegisteredReply());
           return;
         }
-        const today = todayDate(user.tz);
+        const tz = user.tz?.trim() || DEFAULT_USER_TZ;
+        const today = todayDate(tz);
         const entries = await this.deps.fetchByDate(today, user.tutorName);
         const replyText = this.deps.formatDay(entries, today);
         await ctx.reply(replyText, { parse_mode: "HTML" });
@@ -156,7 +164,8 @@ export class ScheduleBot {
           await ctx.reply(buildNotRegisteredReply());
           return;
         }
-        const tomorrow = addDays(todayDate(user.tz), 1);
+        const tz = user.tz?.trim() || DEFAULT_USER_TZ;
+        const tomorrow = addDays(todayDate(tz), 1);
         const entries = await this.deps.fetchByDate(tomorrow, user.tutorName);
         const replyText = this.deps.formatDay(entries, tomorrow);
         await ctx.reply(replyText, { parse_mode: "HTML" });
@@ -174,7 +183,8 @@ export class ScheduleBot {
           await ctx.reply(buildNotRegisteredReply());
           return;
         }
-        const today = todayDate(user.tz);
+        const tz = user.tz?.trim() || DEFAULT_USER_TZ;
+        const today = todayDate(tz);
         const days = Array.from(
           { length: WEEK_DAYS },
           (_, i) => addDays(today, i),

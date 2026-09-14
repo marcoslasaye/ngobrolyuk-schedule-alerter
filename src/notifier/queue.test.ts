@@ -3,7 +3,11 @@
  *
  * Verifies quiet-hours gating (Bali TZ), flushing on window open, per-cycle
  * dedup by hash, and fallback triggering after 3 consecutive WhatsApp
- * failures (with counter reset on fallback recovery).
+ * failures (with counter reset on fallback recovery). Phase 4: per-user
+ * alerts addressed via `recipientChatId` are delivered to their own chat
+ * through `onSendToUser` (grouped per recipient on flush); an un-wired
+ * `onSendToUser` skips the group with an error — it never falls through
+ * to the legacy `onSend` channel.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AlertQueue } from "./queue.js";
@@ -26,11 +30,12 @@ function change(type: ChangeSummary["type"], e: ScheduleEntry): ChangeSummary {
   return { type, class: e, detail: type };
 }
 
-function payload(changes: ChangeSummary[]): AlertPayload {
+function payload(changes: ChangeSummary[], recipientChatId?: string): AlertPayload {
   return {
     changes,
     timestamp: "2026-09-03T10:00:00.000Z",
     dateRange: { start: "2026-09-03", end: "2026-09-09" },
+    recipientChatId,
   };
 }
 
@@ -132,5 +137,99 @@ describe("AlertQueue", () => {
     await q.process(payload([change("added", entry("h2", "Ana"))]), now);
     expect(onFallback).toHaveBeenCalledTimes(1);
     expect(q.consecutiveFailures).toBe(1);
+  });
+});
+
+describe("AlertQueue — per-user recipients (Phase 4)", () => {
+  let onSend: ReturnType<typeof vi.fn>;
+  let onFallback: ReturnType<typeof vi.fn>;
+  let onSendToUser: ReturnType<typeof vi.fn>;
+
+  function ok(): DeliveryResult {
+    return { success: true, channel: "whatsapp" };
+  }
+
+  beforeEach(() => {
+    onSend = vi.fn().mockResolvedValue(ok());
+    onFallback = vi.fn().mockResolvedValue({ success: true, channel: "email" });
+    onSendToUser = vi.fn().mockResolvedValue({ success: true, channel: "telegram" });
+  });
+
+  it("delivers a per-user alert to the recipient's own chat via onSendToUser", async () => {
+    const q = new AlertQueue({ ...QUIET, onSend, onFallback, onSendToUser });
+    const now = atBaliTime("2026-09-03", 14, 0);
+
+    await q.process(payload([change("added", entry("h1", "Juan"))], "chat-42"), now);
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onSendToUser).toHaveBeenCalledTimes(1);
+    const [text, chatId] = onSendToUser.mock.calls[0] as [string, string];
+    expect(chatId).toBe("chat-42");
+    expect(text).toContain("🔔 Schedule changes");
+    expect(text).toContain("/today");
+  });
+
+  it("groups pending per-user changes by recipient chat when flushing", async () => {
+    const q = new AlertQueue({ ...QUIET, onSend, onFallback, onSendToUser });
+    const quietNight = atBaliTime("2026-09-03", 23, 0);
+
+    // Two different users' alerts land during quiet hours.
+    await q.process(payload([change("added", entry("h1", "Juan"))], "chatA"), quietNight);
+    await q.process(payload([change("added", entry("h2", "Ana"))], "chatB"), quietNight);
+    expect(q.queuedCount).toBe(2);
+    expect(onSendToUser).not.toHaveBeenCalled();
+
+    // Window opens → flush delivers ONE message per recipient chat.
+    await q.flush();
+    expect(onSendToUser).toHaveBeenCalledTimes(2);
+    const chats = onSendToUser.mock.calls.map((c) => c[1]);
+    expect(chats.sort()).toEqual(["chatA", "chatB"]);
+    expect(q.queuedCount).toBe(0);
+  });
+
+  it("skips per-user alerts when onSendToUser is not wired (never falls through to legacy onSend)", async () => {
+    const logger = { error: vi.fn() };
+    const q = new AlertQueue({ ...QUIET, onSend, onFallback, logger }); // no onSendToUser
+    const now = atBaliTime("2026-09-03", 14, 0);
+
+    await q.process(
+      payload(
+        [
+          change("added", entry("h1", "Juan")),
+          change("removed", entry("h2", "Ana", "11:00")),
+        ],
+        "chat-9",
+      ),
+      now,
+    );
+
+    // The recipient's alert is skipped entirely — it must NOT leak into the
+    // legacy WhatsApp chat, and nothing stays queued for it.
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onFallback).not.toHaveBeenCalled();
+    expect(q.queuedCount).toBe(0);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      "queue:onSendToUser not wired; skipping 2 alerts for recipient",
+    );
+  });
+
+  it("keeps only undelivered recipients pending when another recipient fails", async () => {
+    onSendToUser.mockImplementation(async (text: string, chatId: string) => {
+      void text;
+      return chatId === "bad"
+        ? { success: false, channel: "telegram", error: "HTTP 500" }
+        : { success: true, channel: "telegram" };
+    });
+    const q = new AlertQueue({ ...QUIET, onSend, onFallback, onSendToUser });
+    const quietNight = atBaliTime("2026-09-03", 23, 0);
+
+    await q.process(payload([change("added", entry("h1", "Juan"))], "good"), quietNight);
+    await q.process(payload([change("added", entry("h2", "Ana"))], "bad"), quietNight);
+    await q.flush();
+
+    // The good recipient was delivered; the bad one stays queued for retry.
+    expect(onSendToUser).toHaveBeenCalledTimes(2);
+    expect(q.queuedCount).toBe(1);
   });
 });

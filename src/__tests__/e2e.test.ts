@@ -30,6 +30,7 @@ import {
   type AlertPayload,
   type DeliveryResult,
 } from "../index.js";
+import type { UserRecord } from "../registry/userStore.js";
 
 const FIXTURES_DIR = resolve("__fixtures__/fetcher");
 /** Recorded, real response HTML for 2026-09-03 (3 class entries for Marcos Lopez). */
@@ -62,14 +63,18 @@ function fixtureFetcher(date: string) {
 /**
  * Build the full production orchestrator composition for the E2E run.
  * `cacheDir` points at a throwaway temp directory; delivery is captured.
+ * One registered user (Marcos Lopez, Asia/Makassar) follows the Phase 4
+ * per-user routing so real alerts reach "e2e-chat".
  */
 function buildE2E(cacheDir: string): {
   orch: ScheduleOrchestrator;
   delivered: DeliveryResult[];
   deliveredText: string[];
+  recipients: string[];
 } {
   const delivered: DeliveryResult[] = [];
   const deliveredText: string[] = [];
+  const recipients: string[] = [];
 
   const queue = new AlertQueue({
     start: "22:00",
@@ -86,7 +91,23 @@ function buildE2E(cacheDir: string): {
       delivered.push(result);
       return result;
     },
+    onSendToUser: async (text: string, chatId: string): Promise<DeliveryResult> => {
+      deliveredText.push(text);
+      recipients.push(chatId);
+      const result: DeliveryResult = { success: true, channel: "telegram" };
+      delivered.push(result);
+      return result;
+    },
   });
+
+  const registeredUsers: UserRecord[] = [
+    {
+      chatId: "e2e-chat",
+      tutorName: "Marcos Lopez",
+      tz: "Asia/Makassar",
+      registeredAt: "2026-09-01T00:00:00.000Z",
+    },
+  ];
 
   const orch = new ScheduleOrchestrator({
     config: {
@@ -101,13 +122,14 @@ function buildE2E(cacheDir: string): {
     fetcher: { fetch: fixtureFetcher },
     differ: { diff: diffEntries },
     queue: queue as never,
+    users: { all: async () => registeredUsers },
     cache: {
       load: () => loadCache(cacheDir),
       save: (schema: CacheSchema) => saveCache(schema, cacheDir),
     },
   });
 
-  return { orch, delivered, deliveredText };
+  return { orch, delivered, deliveredText, recipients };
 }
 
 describe("E2E: run-once with recorded HTML fixtures", () => {
@@ -169,7 +191,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     expect(delivered).toEqual([]);
   });
 
-  it("detects a change and produces an alert payload of the expected shape", async () => {
+  it("detects a change and produces a per-user alert payload of the expected shape", async () => {
     // Seed the cache with a schedule where one fixture class has a different
     // time, so a real `modified` change is produced on the next cycle.
     const seedEntries = fixtureFetcher(FIXTURE_DATE).map((e: ScheduleEntry, i: number) =>
@@ -181,6 +203,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // orchestrator hands to `process()` without spoofing it.
     const delivered: DeliveryResult[] = [];
     const deliveredText: string[] = [];
+    const recipients: string[] = [];
     let capturedPayload: AlertPayload | null = null;
     const realQueue = new AlertQueue({
       start: "22:00",
@@ -194,6 +217,13 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
       },
       onFallback: async (text: string): Promise<DeliveryResult> => {
         const result: DeliveryResult = { success: true, channel: "file" };
+        delivered.push(result);
+        return result;
+      },
+      onSendToUser: async (text: string, chatId: string): Promise<DeliveryResult> => {
+        deliveredText.push(text);
+        recipients.push(chatId);
+        const result: DeliveryResult = { success: true, channel: "telegram" };
         delivered.push(result);
         return result;
       },
@@ -213,6 +243,15 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
       },
     };
 
+    const registeredUsers: UserRecord[] = [
+      {
+        chatId: "e2e-chat",
+        tutorName: "Marcos Lopez",
+        tz: "Asia/Makassar",
+        registeredAt: "2026-09-01T00:00:00.000Z",
+      },
+    ];
+
     const orch = new ScheduleOrchestrator({
       config: {
         teacherId: "marcos",
@@ -226,6 +265,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
       fetcher: { fetch: fixtureFetcher },
       differ: { diff: diffEntries },
       queue: capturingQueue as never,
+      users: { all: async () => registeredUsers },
       cache: {
         load: () => loadCache(cacheDir),
         save: (schema: CacheSchema) => saveCache(schema, cacheDir),
@@ -236,9 +276,10 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     expect(result.errors).toBe(0);
     expect(result.firstRun).toBe(false);
 
-    // A real alert was delivered exactly once.
+    // A real alert was delivered exactly once, to the registered user's chat.
     expect(deliveredText.length).toBe(1);
     expect(deliveredText[0]).toContain("🔔 Schedule changes");
+    expect(recipients).toEqual(["e2e-chat"]);
 
     // The alert payload handed to the queue has the expected shape.
     expect(capturedPayload).not.toBeNull();
@@ -249,6 +290,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
       tutor: "Marcos Lopez",
       student: "Juan Pérez",
     });
+    expect(capturedPayload!.recipientChatId).toBe("e2e-chat");
     expect(typeof capturedPayload!.timestamp).toBe("string");
     expect(new Date(capturedPayload!.timestamp).getTime()).not.toBeNaN();
     expect(capturedPayload!.dateRange.start).toBe(FIXTURE_DATE);
@@ -263,7 +305,7 @@ describe("E2E: run-once with recorded HTML fixtures", () => {
     // DeliveryResult captured.
     expect(delivered).toHaveLength(1);
     expect(delivered[0].success).toBe(true);
-    expect(delivered[0].channel).toBe("whatsapp");
+    expect(delivered[0].channel).toBe("telegram");
   });
 
   it("handles malformed fixture HTML without crashing", async () => {

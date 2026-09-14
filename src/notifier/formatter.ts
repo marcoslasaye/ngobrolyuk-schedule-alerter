@@ -1,9 +1,12 @@
 /**
- * Notifier alert formatter — ChangeSummary[] → WhatsApp text.
+ * Notifier alert formatter — ChangeSummary[] → alert text.
  *
  * Produces a single simple alert: a header plus a "check your schedule"
- * hint. The detailed diff is intentionally NOT included — the user wants
- * a clean notification that points them to /today for the details.
+ * hint, rendered identically for every recipient. The detailed diff is
+ * intentionally NOT included — the user wants a clean notification that
+ * points them to /today for the details. Because alerts are scoped per
+ * user (Phase 4: only TODAY/TOMORROW changes of the user's tutor), no
+ * tutor name or date appears in the message itself.
  * An empty change list produces an empty string (caller sends nothing).
  */
 import type { AlertPayload, ChangeSummary } from "./types.js";

@@ -28,7 +28,7 @@ import type { ScheduleEntry } from "./fetcher/types.js";
 import { diffEntries, type DiffResult } from "./differ/engine.js";
 import { sendWhatsApp } from "./notifier/whatsapp.js";
 import { ScheduleBot, addDays } from "./notifier/bot.js";
-import { sendFallback } from "./notifier/fallback.js";
+import { sendFallback, sendFallbackToChat } from "./notifier/fallback.js";
 import { AlertQueue } from "./notifier/queue.js";
 import type { DeliveryResult } from "./notifier/types.js";
 import { UserStore } from "./registry/userStore.js";
@@ -82,9 +82,10 @@ export interface CliServices {
 }
 
 /**
- * Legacy single-teacher name kept for the CLI / alert-pipeline paths
- * (run-once, daemon poll, daily summary, today). Those paths still
- * target one teacher; slice 4 will make them per registered user.
+ * Legacy single-teacher name kept for the console/daily-summary CLI paths
+ * (run-once, daemon poll, daily summary, today). Those non-interactive
+ * paths still target one teacher; the alert pipeline routes per registered
+ * user (Phase 4) through the user registry instead.
  */
 const LEGACY_TUTOR = "Marcos Lopez";
 
@@ -381,6 +382,8 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
   };
 
   // NotifierPort: AlertQueue with real WhatsApp + fallback delivery.
+  // Per-user alerts (Phase 4) go through onSendToUser to the recipient's
+  // own telegram chat; the WhatsApp onSend stays for legacy paths only.
   const queue = new AlertQueue({
     start: config.quietHours.start,
     end: config.quietHours.end,
@@ -391,6 +394,7 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
         apiKey: config.whatsapp.apiKey,
       }),
     onFallback: (text) => sendFallback(text, config.fallback),
+    onSendToUser: (text, chatId) => sendFallbackToChat(text, config.fallback, chatId),
   });
 
   // CachePort.
@@ -403,8 +407,8 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
     },
   };
 
-  // User registry for the interactive bot: chatId → tutor name
-  // (persists to ~/.schedule-alerter/users.json).
+  // User registry for the interactive bot + per-user alert routing:
+  // chatId → tutor name (persists to ~/.schedule-alerter/users.json).
   const userStore = new UserStore(
     join(homedir(), ".schedule-alerter", "users.json"),
   );
@@ -415,6 +419,7 @@ function buildOrchestrator(config: ConfigSchema): ScheduleOrchestrator {
     differ,
     queue: queue as OrchestratorDeps["queue"],
     cache,
+    users: { all: () => userStore.all() },
     summary: {
       async sendToday(): Promise<DeliveryResult> {
         const today = formatInTimeZone(new Date(), config.dailySummary.tz, "yyyy-MM-dd");
